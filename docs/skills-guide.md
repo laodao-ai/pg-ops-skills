@@ -75,8 +75,8 @@ flowchart TD
 
 ```bash
 # 首次：运行 checkout 是真 clone，不软链到开发仓
-git clone https://github.com/laodao-ai/pg-ops.git ~/.skills/pg-ops
-bash ~/.skills/pg-ops/setup.sh          # 幂等；Unix symlink，Windows 合并拷贝
+git clone https://github.com/laodao-ai/pg-ops-skills.git ~/.skills/pg-ops-skills
+bash ~/.skills/pg-ops-skills/setup.sh          # 幂等；Unix symlink，Windows 合并拷贝
 ```
 
 `setup.sh` 把 4 个 skill + `shared/` symlink 到 `~/.claude/skills/` 与 `~/.codex/skills/`，

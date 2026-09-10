@@ -20,7 +20,7 @@ schema 名、CLI 子命令、制品布局的，留在那个项目的 `hack/`，�
 | `pg-dev-server` | 首版 | 引导填参 → 生成自包含装机脚本 → 人跑或委托跑：PostgreSQL 18 + PgBouncer（transaction / session 两实例按端口分，auth_query）+ Redis，全部回环监听；只装服务器基础环境 | T82 / T83「开发服务器需求」 |
 | `pg-dev-init` | 首版 | 给一个项目立 PG 开发环境：自动调 `pg-dev-server` 做前置检查（装过只落 env，没装才装机）→ 建库 + owner 角色 + scratch 库（只需库名；角色经 PgBouncer 自动可登录）→ 交接连接串；也用于换密 | T83「多项目共用」 |
 | `pg-sync` | 首版 | 生产→开发快照：schema / data 两阶段，生产侧脚本 + 独立 env 一起复制到生产机执行（模型不读生产 env，ADR-0001）、只读 dump → rsync/OSS 传输 → dev 侧装载并 rename 切换；目标非生产核验；项目收尾钩子由消费方提供 | T83 通用段 |
-| `pg-ops-upgrade` | 首版 | 升级本机运行 checkout `~/.skills/pg-ops`：pull → setup → 显示版本 | — |
+| `pg-ops-upgrade` | 首版 | 升级本机运行 checkout `~/.skills/pg-ops-skills`：pull → setup → 显示版本 | — |
 
 规划中的 skill（`pg-backup` / `pg-tune` / `pg-prod-server` / `pg-sizing` / `pg-monitor` / `pg-roles`）、
 实施顺序、卡点与规格来源，见 **[`docs/skills-roadmap.md`](docs/skills-roadmap.md)**——那是 skill 规划
@@ -29,8 +29,8 @@ schema 名、CLI 子命令、制品布局的，留在那个项目的 `hack/`，�
 ## 安装
 
 ```bash
-git clone https://github.com/laodao-ai/pg-ops.git ~/.skills/pg-ops   # 运行 checkout（真 clone，不是软链）
-bash ~/.skills/pg-ops/setup.sh            # 幂等；Unix symlink，Windows 拷贝
+git clone https://github.com/laodao-ai/pg-ops-skills.git ~/.skills/pg-ops-skills   # 运行 checkout（真 clone，不是软链）
+bash ~/.skills/pg-ops-skills/setup.sh            # 幂等；Unix symlink，Windows 拷贝
 ```
 
 之后升级用 `/pg-ops-upgrade`（pull → setup → 显示版本）。开发改动在另一份开发 checkout 里做、push 后

@@ -1,7 +1,7 @@
 # pg-ops 快速上手（给人读）
 
 本页讲的是**人该做什么、该说什么、会得到什么、东西落在哪**。各 skill 的 `SKILL.md` 是给 Claude / Codex 读的操作手册，
-人不必看；本页按三种场景组织，照着走即可。前提是本机已按 README「安装」装好 pg-ops（`~/.skills/pg-ops` + `setup.sh`）。
+人不必看；本页按三种场景组织，照着走即可。前提是本机已按 README「安装」装好 pg-ops（`~/.skills/pg-ops-skills` + `setup.sh`）。
 
 ## 先记住一张图：两处目录，一处真相
 

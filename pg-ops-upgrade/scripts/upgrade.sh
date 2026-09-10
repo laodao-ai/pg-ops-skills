@@ -1,5 +1,5 @@
 #!/bin/bash
-# Upgrade the pg-ops run checkout (~/.skills/pg-ops): git pull --ff-only,
+# Upgrade the pg-ops run checkout (~/.skills/pg-ops-skills): git pull --ff-only,
 # then bash setup.sh to refresh the skill symlinks, then show the resulting
 # version and recent changelog. Pull and setup MUST run back-to-back — pulling
 # without re-running setup.sh would leave newly-added skill directories
@@ -15,7 +15,7 @@
 #   2  setup.sh failed
 set -euo pipefail
 
-CHECKOUT_DIR="${HOME}/.skills/pg-ops"
+CHECKOUT_DIR="${HOME}/.skills/pg-ops-skills"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info() { echo -e "${YELLOW}[INFO]${NC} $1" >&2; }
@@ -42,10 +42,21 @@ fi
 # itself failing (non-git directory / no origin remote) rather than letting
 # set -e handle it implicitly.
 REMOTE=$(git -C "$CHECKOUT_DIR" remote get-url origin 2>/dev/null) || REMOTE=""
-if [[ -z "$REMOTE" || "$REMOTE" != *"laodao-ai/pg-ops"* ]]; then
+# The dev repo (pg-ops-dev) is called out separately: running setup.sh from a
+# dev checkout repoints the host symlinks at it, which has bitten us before.
+# The generic check below already rejects it -- this branch only makes the
+# error actionable.
+if [[ "$REMOTE" == *"laodao-ai/pg-ops-dev"* ]]; then
+    fail3 \
+        "当前 checkout 指向开发仓，不是公开仓" \
+        "remote 是 laodao-ai/pg-ops-dev（开发仓）；升级只能对公开仓 laodao-ai/pg-ops-skills 的 checkout 做" \
+        "删掉 ${CHECKOUT_DIR} 后重新 clone: git clone https://github.com/laodao-ai/pg-ops-skills.git ${CHECKOUT_DIR}"
+    exit 1
+fi
+if [[ -z "$REMOTE" || "$REMOTE" != *"laodao-ai/pg-ops-skills"* ]]; then
     fail3 \
         "当前 checkout 不是官方仓库" \
-        "remote URL 不含 laodao-ai/pg-ops（当前值: ${REMOTE:-<空，get-url 失败或非 git 仓库>}）" \
+        "remote URL 不含 laodao-ai/pg-ops-skills（当前值: ${REMOTE:-<空，get-url 失败或非 git 仓库>}）" \
         "检查 git -C ${CHECKOUT_DIR} remote -v，或删除后重新 clone"
     exit 1
 fi

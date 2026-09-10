@@ -31,8 +31,8 @@ no-op.
 ## Install
 
 ```bash
-git clone https://github.com/laodao-ai/pg-ops.git ~/.skills/pg-ops   # a real clone, not a symlink into a dev checkout
-bash ~/.skills/pg-ops/setup.sh                                       # idempotent; symlinks on Unix, copies on Windows
+git clone https://github.com/laodao-ai/pg-ops-skills.git ~/.skills/pg-ops-skills   # a real clone, not a symlink into a dev checkout
+bash ~/.skills/pg-ops-skills/setup.sh                                       # idempotent; symlinks on Unix, copies on Windows
 ```
 
 This installs the 3 skills plus the `pg-ops-upgrade` upgrade skill into both `~/.claude/skills/`
