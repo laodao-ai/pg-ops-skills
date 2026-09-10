@@ -2,7 +2,7 @@
 
 A standalone, globally-installed PostgreSQL **ops engine repo**: stand up and operate the
 PostgreSQL service itself — provisioning, backup/restore, prod→dev sync, monitoring, roles.
-Extracted from example-app's ops discussion (2026-09-04).
+Extracted from the production ops practice of a Go service (2026-09-04).
 
 See `README.md` (Chinese, the primary/canonical doc) for the full skill table, directory layout,
 and per-key configuration reference.
