@@ -42,22 +42,28 @@ fi
 # itself failing (non-git directory / no origin remote) rather than letting
 # set -e handle it implicitly.
 REMOTE=$(git -C "$CHECKOUT_DIR" remote get-url origin 2>/dev/null) || REMOTE=""
-# The dev repo (pg-ops-dev) is called out separately: running setup.sh from a
-# dev checkout repoints the host symlinks at it, which has bitten us before.
-# The generic check below already rejects it -- this branch only makes the
-# error actionable.
-if [[ "$REMOTE" == *"laodao-ai/pg-ops-dev"* ]]; then
-    fail3 \
-        "当前 checkout 指向开发仓，不是公开仓" \
-        "remote 是 laodao-ai/pg-ops-dev（开发仓）；升级只能对公开仓 laodao-ai/pg-ops-skills 的 checkout 做" \
-        "删掉 ${CHECKOUT_DIR} 后重新 clone: git clone https://github.com/laodao-ai/pg-ops-skills.git ${CHECKOUT_DIR}"
-    exit 1
-fi
+# The public repo is the only valid target. This generic check decides; the
+# branch inside it only picks a more actionable message.
+#
+# Note the two repo names are prefixes of each other:
+#   dev    laodao-ai/pg-ops          (PRIVATE)
+#   public laodao-ai/pg-ops-skills   (PUBLIC)
+# So the dev-repo call-out MUST anchor at end-of-string (optional .git / slash),
+# never a bare substring match -- `*laodao-ai/pg-ops*` matches the public URL too.
 if [[ -z "$REMOTE" || "$REMOTE" != *"laodao-ai/pg-ops-skills"* ]]; then
-    fail3 \
-        "当前 checkout 不是官方仓库" \
-        "remote URL 不含 laodao-ai/pg-ops-skills（当前值: ${REMOTE:-<空，get-url 失败或非 git 仓库>}）" \
-        "检查 git -C ${CHECKOUT_DIR} remote -v，或删除后重新 clone"
+    if [[ "$REMOTE" =~ laodao-ai/pg-ops(\.git)?/?$ ]]; then
+        # Running setup.sh from a dev checkout repoints the host symlinks at it,
+        # which has bitten us before -- say so explicitly.
+        fail3 \
+            "当前 checkout 指向开发仓，不是公开仓" \
+            "remote 是 laodao-ai/pg-ops（开发仓，PRIVATE）；升级只能对公开仓 laodao-ai/pg-ops-skills 的 checkout 做" \
+            "删掉 ${CHECKOUT_DIR} 后重新 clone: git clone https://github.com/laodao-ai/pg-ops-skills.git ${CHECKOUT_DIR}"
+    else
+        fail3 \
+            "当前 checkout 不是官方仓库" \
+            "remote URL 不含 laodao-ai/pg-ops-skills（当前值: ${REMOTE:-<空，get-url 失败或非 git 仓库>}）" \
+            "检查 git -C ${CHECKOUT_DIR} remote -v，或删除后重新 clone"
+    fi
     exit 1
 fi
 
