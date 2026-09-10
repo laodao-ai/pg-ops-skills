@@ -1,0 +1,835 @@
+<title>pg-ops 操作手册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+
+<style>
+:root {
+  --bg:        #F4F6F4;
+  --surface:   #FFFFFF;
+  --surface-2: #EDF0EE;
+  --ink:       #171C1A;
+  --ink-2:     #3D4744;
+  --muted:     #66716D;
+  --rule:      #D5DBD7;
+  --rule-soft: #E4E8E5;
+  --ops:       #1C5A55;
+  --ops-soft:  #E2EFEC;
+  --ro:        #96591A;
+  --ro-soft:   #F6EBDA;
+  --alert:     #9A2E2A;
+  --alert-soft:#F7E6E4;
+  --shadow:    0 1px 2px rgba(20,32,28,.06), 0 8px 24px -16px rgba(20,32,28,.28);
+
+  --f-display: "IBM Plex Serif", Georgia, "Songti SC", serif;
+  --f-body:    "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --f-mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #101513;
+    --surface:   #181E1C;
+    --surface-2: #1F2724;
+    --ink:       #E5EAE7;
+    --ink-2:     #C0C9C5;
+    --muted:     #8E9995;
+    --rule:      #2C3733;
+    --rule-soft: #232C29;
+    --ops:       #63B6AA;
+    --ops-soft:  #16302D;
+    --ro:        #D8A05A;
+    --ro-soft:   #332613;
+    --alert:     #E08078;
+    --alert-soft:#33201E;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"] {
+  --bg:        #101513;
+  --surface:   #181E1C;
+  --surface-2: #1F2724;
+  --ink:       #E5EAE7;
+  --ink-2:     #C0C9C5;
+  --muted:     #8E9995;
+  --rule:      #2C3733;
+  --rule-soft: #232C29;
+  --ops:       #63B6AA;
+  --ops-soft:  #16302D;
+  --ro:        #D8A05A;
+  --ro-soft:   #332613;
+  --alert:     #E08078;
+  --alert-soft:#33201E;
+  --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.68;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 0;
+  max-width: 1180px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+/* ---------- sidebar ---------- */
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 34px 20px 34px 28px;
+  border-right: 1px solid var(--rule-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+}
+.rail-mark {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rail-title {
+  font-family: var(--f-display);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: -10px;
+}
+.rail nav { display: flex; flex-direction: column; gap: 1px; }
+.rail nav a {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 8px 5px 0;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: 13.5px;
+  border-left: 2px solid transparent;
+  padding-left: 10px;
+  transition: color .12s, border-color .12s;
+}
+.rail nav a .n {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.rail nav a:hover { color: var(--ink); }
+.rail nav a.on { color: var(--ink); border-left-color: var(--ops); font-weight: 500; }
+.rail nav a.on .n { color: var(--ops); }
+.rail-foot {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--f-mono);
+  line-height: 1.5;
+}
+
+/* ---------- content ---------- */
+main { padding: 46px 44px 120px; min-width: 0; }
+
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 22px; margin-bottom: 34px; }
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+h1 {
+  font-family: var(--f-display);
+  font-size: clamp(30px, 4.4vw, 42px);
+  font-weight: 600;
+  line-height: 1.14;
+  letter-spacing: -.015em;
+  margin: 12px 0 10px;
+  text-wrap: balance;
+}
+.standfirst {
+  font-size: 16.5px;
+  color: var(--ink-2);
+  max-width: 62ch;
+  margin: 0;
+}
+.standfirst strong { color: var(--ink); font-weight: 600; }
+
+section { margin-top: 56px; scroll-margin-top: 24px; }
+h2 {
+  font-family: var(--f-display);
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+h2 .n {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+h3 {
+  font-family: var(--f-body);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 34px 0 8px;
+  letter-spacing: -.005em;
+}
+h4 {
+  font-family: var(--f-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 26px 0 8px;
+}
+p { max-width: 68ch; margin: 0 0 14px; }
+a { color: var(--ops); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+strong { font-weight: 600; }
+code {
+  font-family: var(--f-mono);
+  font-size: .875em;
+  background: var(--surface-2);
+  padding: 1.5px 5px;
+  border-radius: 3px;
+  color: var(--ink);
+}
+ul, ol { max-width: 68ch; padding-left: 20px; margin: 0 0 16px; }
+li { margin-bottom: 7px; }
+li::marker { color: var(--muted); }
+
+/* ---------- tables ---------- */
+.tw { overflow-x: auto; margin: 18px 0 22px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 460px; }
+th {
+  text-align: left;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0 14px 8px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: bottom;
+}
+td {
+  padding: 11px 14px 11px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+  line-height: 1.55;
+}
+tr:last-child td { border-bottom: none; }
+td:first-child, th:first-child { padding-left: 0; }
+
+/* ---------- code block ---------- */
+pre {
+  font-family: var(--f-mono);
+  font-size: 12.8px;
+  line-height: 1.62;
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--rule);
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 0 0 18px;
+  color: var(--ink-2);
+}
+pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+pre .c { color: var(--muted); }
+
+/* ---------- figures ---------- */
+figure { margin: 26px 0 30px; }
+figure svg { display: block; width: 100%; max-width: 100%; height: auto; }
+.figwrap { overflow-x: auto; }
+figcaption {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 10px;
+  max-width: 68ch;
+  line-height: 1.55;
+  border-left: 2px solid var(--rule);
+  padding-left: 11px;
+}
+
+/* ---------- skill cards ---------- */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); gap: 1px; background: var(--rule-soft); border: 1px solid var(--rule-soft); margin: 20px 0 26px; }
+.card { background: var(--surface); padding: 15px 16px 16px; display: flex; flex-direction: column; gap: 6px; }
+.card .lane {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.card.ops .lane { color: var(--ops); }
+.card.ro  .lane { color: var(--ro); }
+.card.tool .lane { color: var(--muted); }
+.card .nm { font-family: var(--f-mono); font-size: 14px; font-weight: 600; color: var(--ink); }
+.card p { font-size: 13.2px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+/* ---------- callouts ---------- */
+.note {
+  border-left: 2px solid var(--ops);
+  background: var(--ops-soft);
+  padding: 13px 16px;
+  margin: 20px 0;
+  font-size: 14.2px;
+  max-width: 68ch;
+}
+.note.hard { border-left-color: var(--alert); background: var(--alert-soft); }
+.note.ro { border-left-color: var(--ro); background: var(--ro-soft); }
+.note p:last-child { margin-bottom: 0; }
+.note .lbl {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 5px;
+  color: var(--ops);
+}
+.note.hard .lbl { color: var(--alert); }
+.note.ro .lbl { color: var(--ro); }
+
+/* ---------- exit codes ---------- */
+.codes { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 20px; }
+.codes div {
+  font-family: var(--f-mono);
+  font-size: 12.5px;
+  border: 1px solid var(--rule);
+  padding: 5px 10px;
+  background: var(--surface);
+}
+.codes b { color: var(--ops); font-weight: 600; }
+
+/* ---------- counts strip ---------- */
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1px solid var(--rule);
+  margin: 26px 0 10px;
+  background: var(--surface);
+}
+.strip div { padding: 12px 18px; border-right: 1px solid var(--rule-soft); flex: 1 1 auto; }
+.strip div:last-child { border-right: none; }
+.strip .k { font-family: var(--f-mono); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.strip .v { font-family: var(--f-display); font-size: 21px; font-weight: 600; line-height: 1.3; }
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+    padding: 22px 22px 16px;
+  }
+  .rail nav { flex-direction: row; flex-wrap: wrap; gap: 2px 4px; }
+  .rail nav a { border-left: none; border-bottom: 2px solid transparent; padding: 4px 8px; }
+  .rail nav a.on { border-left-color: transparent; border-bottom-color: var(--ops); }
+  .rail-foot { margin-top: 12px; }
+  main { padding: 30px 22px 90px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+a:focus-visible, .rail nav a:focus-visible { outline: 2px solid var(--ops); outline-offset: 2px; }
+</style>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-mark">pg-ops</div>
+    <div class="rail-title">操作手册</div>
+    <nav id="toc">
+      <a href="#overview"><span class="n">01</span>一条线，一条接缝</a>
+      <a href="#which"><span class="n">02</span>我该用哪个</a>
+      <a href="#install"><span class="n">03</span>安装与升级</a>
+      <a href="#ops"><span class="n">04</span>运维线</a>
+      <a href="#security"><span class="n">05</span>凭据与边界</a>
+      <a href="#stuck"><span class="n">06</span>卡住了？速查</a>
+      <a href="#ref"><span class="n">07</span>速查表</a>
+    </nav>
+    <div class="rail-foot">
+      3 skills + 1 tool<br>
+      ADR 0001–0002<br>
+      Apache-2.0
+    </div>
+  </aside>
+
+  <main>
+    <header class="masthead">
+      <div class="eyebrow"><span>PostgreSQL 运维引擎</span><span>给人读</span><span>2026-09-10</span></div>
+      <h1>三个 skill，一条运维线</h1>
+      <p class="standfirst">这份文档只回答人的三个问题：<strong>我该用哪个 · 按什么顺序 · 卡住了在哪一格</strong>。各 <code>SKILL.md</code> 是给 Claude / Codex 读的操作手册（参数表、退出码、MUST NOT），人不必看。</p>
+    </header>
+
+    <div class="strip">
+      <div><div class="k">运维线</div><div class="v">3 skill</div></div>
+      <div><div class="k">工具线</div><div class="v">1 skill</div></div>
+      <div><div class="k">真相源</div><div class="v">服务器</div></div>
+      <div><div class="k">口令</div><div class="v">模型不碰</div></div>
+    </div>
+
+    <!-- ============ 01 ============ -->
+    <section id="overview">
+      <h2><span class="n">01</span>一条线，一条接缝</h2>
+      <p><strong>运维线</strong>管「把 PostgreSQL 服务本身立起来并运维」——装机、建库建角色、备份同步。</p>
+
+      <figure>
+        <div class="figwrap">
+        <svg viewBox="0 0 900 300" role="img" aria-label="pg-ops 引擎仓的运维线经一条接缝通向消费项目仓，再连到服务器上的真相源目录">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+            <marker id="ar-ops" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" style="fill:var(--ops)"/>
+            </marker>
+          </defs>
+
+          <!-- engine repo -->
+          <rect x="8" y="34" width="282" height="228" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
+          <text x="18" y="24" font-size="12" fill="currentColor" opacity=".65" style="font-family:var(--f-mono)">pg-ops（引擎仓 · 零项目知识）</text>
+
+          <!-- ops lane -->
+          <rect x="24" y="52" width="250" height="176" stroke-width="1" style="fill:var(--ops-soft);stroke:var(--ops)"/>
+          <text x="38" y="74" font-size="12.5" font-weight="600" style="font-family:var(--f-mono);fill:var(--ops)">运维线</text>
+          <rect x="38" y="84" width="222" height="38" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="50" y="101" font-size="12.5" fill="currentColor" style="font-family:var(--f-mono)">pg-dev-server</text>
+          <text x="50" y="115" font-size="11.5" fill="currentColor" opacity=".7">装机基础环境</text>
+          <rect x="38" y="128" width="222" height="38" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="50" y="145" font-size="12.5" fill="currentColor" style="font-family:var(--f-mono)">pg-dev-init</text>
+          <text x="50" y="159" font-size="11.5" fill="currentColor" opacity=".7">建库 + owner 角色</text>
+          <rect x="38" y="172" width="222" height="38" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="50" y="189" font-size="12.5" fill="currentColor" style="font-family:var(--f-mono)">pg-sync</text>
+          <text x="50" y="203" font-size="11.5" fill="currentColor" opacity=".7">生产 → 开发快照</text>
+
+          <!-- seam -->
+          <line x1="274" y1="140" x2="360" y2="140" stroke-width="1.5" marker-end="url(#ar-ops)" style="stroke:var(--ops)"/>
+          <text x="278" y="132" font-size="11.5" style="fill:var(--ops)">接缝</text>
+
+          <!-- consumer repo -->
+          <rect x="362" y="34" width="248" height="228" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
+          <text x="372" y="24" font-size="12" fill="currentColor" opacity=".65" style="font-family:var(--f-mono)">消费项目仓</text>
+
+          <rect x="378" y="118" width="216" height="96" stroke-width="1.5" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="392" y="140" font-size="13" font-weight="600" style="font-family:var(--f-mono);fill:var(--ops)">.pg-ops/</text>
+          <text x="392" y="158" font-size="11.5" fill="currentColor">owner 口令 · 建库参数</text>
+          <text x="392" y="175" font-size="11.5" fill="currentColor">整目录 gitignore + deny</text>
+          <text x="392" y="194" font-size="11.5" font-weight="600" style="fill:var(--alert)">模型不碰（ADR-0002）</text>
+
+          <!-- server -->
+          <line x1="596" y1="148" x2="676" y2="148" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="606" y="140" font-size="11" fill="currentColor" opacity=".75" style="font-family:var(--f-mono)">scp</text>
+          <line x1="676" y1="184" x2="596" y2="184" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="672" y="202" text-anchor="end" font-size="11" opacity=".75" style="font-family:var(--f-mono)">pgops-fetch.sh</text>
+
+          <rect x="678" y="92" width="212" height="150" stroke="currentColor" stroke-width="2" style="fill:var(--surface)"/>
+          <text x="692" y="116" font-size="13" fill="currentColor" font-weight="600" style="font-family:var(--f-mono)">/opt/pg-ops/</text>
+          <text x="692" y="136" font-size="11.5" fill="currentColor" opacity=".8">root 700 · 服务器</text>
+          <line x1="692" y1="146" x2="876" y2="146" stroke="currentColor" stroke-width="1" opacity=".25"/>
+          <text x="692" y="166" font-size="12" font-weight="600" style="fill:var(--ops)">真相源</text>
+          <text x="692" y="186" font-size="11.5" fill="currentColor" opacity=".8">handover.md</text>
+          <text x="692" y="203" font-size="11.5" fill="currentColor" opacity=".8">projects/&lt;库名&gt;.md</text>
+          <text x="692" y="220" font-size="11.5" fill="currentColor" opacity=".8">bin/ · postgres.pass</text>
+          <text x="692" y="237" font-size="11" fill="currentColor" opacity=".6">口令在这里首次生成、之后沿用</text>
+        </svg>
+        </div>
+        <figcaption>接缝是本仓最重要的设计线索：口令真相源在服务器上，模型全程不碰（ADR-0002）。</figcaption>
+      </figure>
+
+      <div class="tw">
+      <table>
+        <thead><tr><th></th><th>运维线接缝 <code>.pg-ops/</code></th></tr></thead>
+        <tbody>
+          <tr><td>装的口令</td><td>库 owner / 超级用户 / Redis</td></tr>
+          <tr><td>模型能读吗</td><td><strong>不能</strong>——一切读写经三个工具脚本</td></tr>
+          <tr><td>真相源在哪</td><td><strong>服务器</strong> <code>/opt/pg-ops/</code></td></tr>
+          <tr><td>依据</td><td>ADR-0002</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ============ 02 ============ -->
+    <section id="which">
+      <h2><span class="n">02</span>我该用哪个</h2>
+
+      <figure>
+        <div class="figwrap">
+        <svg viewBox="0 0 900 340" role="img" aria-label="决策树：按你要做的事分岔到运维线三个 skill 或工具线一个 skill">
+          <!-- root -->
+          <rect x="352" y="14" width="196" height="40" stroke="currentColor" stroke-width="2" style="fill:var(--surface)"/>
+          <text x="450" y="39" text-anchor="middle" font-size="13.5" fill="currentColor" font-weight="600">你要做什么？</text>
+
+          <!-- trunk -->
+          <line x1="450" y1="54" x2="450" y2="74" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="132" y1="74" x2="790" y2="74" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="132" y1="74" x2="132" y2="104" stroke-width="1.5" marker-end="url(#ar-ops)" style="stroke:var(--ops)"/>
+          <line x1="790" y1="74" x2="790" y2="104" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- ops branch -->
+          <text x="132" y="122" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ops)">把 PG 立起来 / 运维它</text>
+          <rect x="16" y="140" width="232" height="46" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="30" y="160" font-size="12.5" style="font-family:var(--f-mono);fill:var(--ops)">/pg-dev-server</text>
+          <text x="30" y="176" font-size="11.5" fill="currentColor" opacity=".75">新开一台开发 DB 服务器</text>
+          <rect x="16" y="196" width="232" height="60" stroke-width="2" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="30" y="216" font-size="12.5" style="font-family:var(--f-mono);fill:var(--ops)">/pg-dev-init</text>
+          <text x="30" y="232" font-size="11.5" fill="currentColor" opacity=".75">给某个项目建开发库</text>
+          <text x="30" y="248" font-size="11" fill="currentColor" opacity=".6">服务器装没装过都说这句</text>
+          <rect x="16" y="266" width="232" height="46" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="30" y="286" font-size="12.5" style="font-family:var(--f-mono);fill:var(--ops)">/pg-sync</text>
+          <text x="30" y="302" font-size="11.5" fill="currentColor" opacity=".75">把生产数据刷进开发库</text>
+
+          <path d="M 16 226 L 4 226 L 4 163 L 14 163" fill="none" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar-ops)" style="stroke:var(--ops)"/>
+          <text x="20" y="324" font-size="11.5" style="fill:var(--ops)">虚线：没装过时 pg-dev-init 自动先调 pg-dev-server</text>
+
+          <!-- tool branch -->
+          <text x="790" y="122" text-anchor="middle" font-size="12" fill="currentColor" font-weight="600">skill 本身要更新</text>
+          <rect x="674" y="140" width="212" height="46" stroke="currentColor" stroke-width="1" style="fill:var(--surface)"/>
+          <text x="688" y="160" font-size="12.5" fill="currentColor" style="font-family:var(--f-mono)">/pg-ops-upgrade</text>
+          <text x="688" y="176" font-size="11.5" fill="currentColor" opacity=".75">pull → setup → 显示版本</text>
+
+          <line x1="674" y1="230" x2="886" y2="230" stroke="currentColor" stroke-width="1" opacity=".3"/>
+          <text x="674" y="252" font-size="11.5" fill="currentColor" opacity=".75">人只说一句话。</text>
+          <text x="674" y="270" font-size="11.5" fill="currentColor" opacity=".75">不要手动一个个跑前置 skill——</text>
+          <text x="674" y="288" font-size="11.5" fill="currentColor" opacity=".75">编排是 skill 自己的活。</text>
+        </svg>
+        </div>
+        <figcaption>粗边框的是运维线的实际入口 <code>pg-dev-init</code>——服务器装没装过都说这句，其余由它自己编排。</figcaption>
+      </figure>
+
+      <h3>一句话触发表</h3>
+      <p>在<strong>项目仓根目录</strong>对 Claude / Codex 说：</p>
+      <div class="tw">
+      <table>
+        <thead><tr><th>你想做的事</th><th>说这句</th><th>会跑的 skill</th></tr></thead>
+        <tbody>
+          <tr><td>新开一台开发数据库服务器</td><td>「搭一台开发数据库服务器，ssh 别名是 <code>dev</code>」</td><td><code>pg-dev-server</code></td></tr>
+          <tr><td>给这个项目建开发库</td><td>「给这个项目建 pg dev 环境，服务器是 <code>dev</code>」</td><td><code>pg-dev-init</code>（自动做前置检查）</td></tr>
+          <tr><td>换开发库密码</td><td>「换一下开发库密码」</td><td><code>pg-dev-init</code></td></tr>
+          <tr><td>从生产拉快照到开发库</td><td>「从生产同步数据到 dev」</td><td><code>pg-sync</code></td></tr>
+          <tr><td>升级 skill 套件</td><td>「升级 pg-ops」</td><td><code>pg-ops-upgrade</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ============ 03 ============ -->
+    <section id="install">
+      <h2><span class="n">03</span>安装与升级</h2>
+<pre><code><span class="c"># 首次：运行 checkout 是真 clone，不软链到开发仓</span>
+git clone https://github.com/laodao-ai/pg-ops.git ~/.skills/pg-ops
+bash ~/.skills/pg-ops/setup.sh          <span class="c"># 幂等；Unix symlink，Windows 合并拷贝</span></code></pre>
+      <p><code>setup.sh</code> 把 4 个 skill + <code>shared/</code> symlink 到 <code>~/.claude/skills/</code> 与 <code>~/.codex/skills/</code>，任何 PG 项目全局可用。</p>
+      <p>之后升级说「升级 pg-ops」即可：<code>git pull --ff-only</code> → <code>setup.sh</code> → 显示版本与最近 5 条变更。</p>
+      <div class="codes">
+        <div><b>0</b> 成功</div>
+        <div><b>1</b> pull 层失败（checkout 不存在 / remote 不匹配 / 非 ff / detached HEAD）</div>
+        <div><b>2</b> setup.sh 失败</div>
+      </div>
+      <div class="note">
+        <span class="lbl">运行 checkout 只读</span>
+        <p>改代码在另一份开发 checkout 里做、push 之后在运行机跑升级。运行 checkout 被改过会导致非 ff，升级会停下报告而<strong>不会</strong>强推。</p>
+      </div>
+    </section>
+
+    <!-- ============ 04 ============ -->
+    <section id="ops">
+      <h2><span class="n">04</span>运维线</h2>
+      <h3>固定交互模型：引导填参 → 渲染自包含脚本 → 默认人跑</h3>
+      <p>人明确说了「你来跑」，模型才会经 ssh 代跑并把输出原样带回。</p>
+
+      <figure>
+        <div class="figwrap">
+        <svg viewBox="0 0 900 340" role="img" aria-label="运维线执行流程：一句话触发后 skill 自己 ssh 探测服务器装过没有，分成 FRESH 装机与 INSTALLED 只接入两条路径，然后渲染脚本、默认打印命令由人执行，最后取回交接文档副本">
+          <text x="8" y="16" font-size="11.5" fill="currentColor" opacity=".65" style="font-family:var(--f-mono)">人一句话</text>
+          <rect x="8" y="26" width="150" height="44" stroke="currentColor" stroke-width="2" style="fill:var(--surface)"/>
+          <text x="20" y="46" font-size="12" fill="currentColor">「给这个项目建</text>
+          <text x="20" y="62" font-size="12" fill="currentColor">pg dev 环境」</text>
+          <line x1="158" y1="48" x2="196" y2="48" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- probe -->
+          <rect x="198" y="18" width="176" height="60" stroke-width="1.5" style="fill:var(--ops-soft);stroke:var(--ops)"/>
+          <text x="210" y="38" font-size="12" font-weight="600" style="fill:var(--ops)">⓪ 起手判断</text>
+          <text x="210" y="54" font-size="10.5" fill="currentColor" style="font-family:var(--f-mono)">ssh test -f</text>
+          <text x="210" y="68" font-size="10.5" fill="currentColor" style="font-family:var(--f-mono)">/opt/pg-ops/handover.md</text>
+          <text x="200" y="94" font-size="11" fill="currentColor" opacity=".6">自己查，不问人</text>
+
+          <!-- branches -->
+          <path d="M 374 34 L 404 34" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <path d="M 374 62 L 404 62" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <rect x="406" y="10" width="232" height="46" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="418" y="28" font-size="12" font-weight="600" style="fill:var(--ops)">FRESH</text>
+          <text x="418" y="45" font-size="11.5" fill="currentColor">走完整装机（人跑 / 委托）</text>
+          <rect x="406" y="62" width="232" height="46" stroke-width="2" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="418" y="80" font-size="12" font-weight="600" style="fill:var(--ops)">INSTALLED · 最常见</text>
+          <text x="418" y="97" font-size="11.5" fill="currentColor">只落 env + 取回交接文档</text>
+
+          <!-- merge down -->
+          <path d="M 522 108 L 522 132 L 300 132 L 300 154" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <path d="M 522 56 L 560 56 L 560 132" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+          <!-- render -->
+          <rect x="184" y="156" width="232" height="52" stroke="currentColor" stroke-width="1.5" style="fill:var(--surface)"/>
+          <text x="196" y="176" font-size="12" fill="currentColor" font-weight="600">② 渲染自包含脚本</text>
+          <text x="196" y="194" font-size="10.5" fill="currentColor" opacity=".75" style="font-family:var(--f-mono)">.pg-ops/build/db-&lt;库名&gt;.sh</text>
+          <text x="186" y="224" font-size="11" fill="currentColor" opacity=".6">① 只问一项：库名（先按 go.mod 推提议）</text>
+
+          <line x1="416" y1="182" x2="452" y2="182" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- execute -->
+          <rect x="454" y="150" width="200" height="64" stroke="currentColor" stroke-width="2" style="fill:var(--surface)"/>
+          <text x="466" y="170" font-size="12" fill="currentColor" font-weight="600">③ 默认打印两行</text>
+          <text x="466" y="187" font-size="10.5" fill="currentColor" style="font-family:var(--f-mono)">scp … &amp;&amp; ssh -t … sudo</text>
+          <text x="466" y="205" font-size="11.5" font-weight="600" style="fill:var(--alert)">由人执行</text>
+
+          <line x1="654" y1="182" x2="690" y2="182" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- server -->
+          <rect x="692" y="140" width="200" height="84" stroke="currentColor" stroke-width="2" style="fill:var(--surface)"/>
+          <text x="704" y="160" font-size="12" fill="currentColor" font-weight="600">服务器执行</text>
+          <text x="704" y="178" font-size="11.5" fill="currentColor">建角色 → 建库 → scratch 库</text>
+          <text x="704" y="195" font-size="11.5" fill="currentColor">经 PgBouncer 真登录探活</text>
+          <text x="704" y="214" font-size="11.5" font-weight="600" style="fill:var(--ops)">写 projects/&lt;库名&gt;.md</text>
+
+          <!-- fetch back -->
+          <path d="M 792 224 L 792 260 L 300 260 L 300 236" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="470" y="254" font-size="11" fill="currentColor" opacity=".75" style="font-family:var(--f-mono)">④ pgops-fetch.sh 取回副本</text>
+
+          <rect x="184" y="268" width="470" height="52" stroke-width="1" style="fill:var(--alert-soft);stroke:var(--alert)"/>
+          <text x="198" y="290" font-size="12" font-weight="600" style="fill:var(--alert)">模型报两处路径</text>
+          <text x="198" y="308" font-size="11.5" fill="currentColor">交接文档的内容 MUST NOT 出现在回复里——人自己 cat</text>
+        </svg>
+        </div>
+        <figcaption>探活失败脚本会非零退出，不会假绿。脚本执行时把自己装到服务器 <code>/opt/pg-ops/bin/</code>，可原地重跑。</figcaption>
+      </figure>
+
+      <h3>三个 skill 各管什么</h3>
+      <div class="tw">
+      <table>
+        <thead><tr><th>skill</th><th>管</th><th><strong>不</strong>管</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>pg-dev-server</code></td>
+            <td>服务器基础环境：PostgreSQL 18 + PgBouncer 两实例（6432 transaction / 7432 session，auth_query）+ Redis，全部只监听 127.0.0.1。另有加固与只重写文档（<code>PG_OPS_DOCS_ONLY=1</code>）两个子模式</td>
+            <td>任何项目的库 / 角色；云安全组（控制台人工项）；生产</td>
+          </tr>
+          <tr>
+            <td><code>pg-dev-init</code></td>
+            <td>给一个项目建库 + owner 角色 + <code>&lt;库名&gt;_scratch</code> 库；也用于换密。<strong>只需库名一项参数</strong>，角色经 PgBouncer auth_query 自动可登录，项目侧零 PgBouncer 配置</td>
+            <td>装服务；跑项目迁移 / 灌数据 / 改项目配置（留在消费项目 <code>hack/</code>）</td>
+          </tr>
+          <tr>
+            <td><code>pg-sync</code></td>
+            <td>生产 → 开发快照：schema 与 data 两阶段分开，只读 dump → rsync 或 OSS → dev 侧装载并 rename 切换</td>
+            <td>建库、管角色（前置要先跑过 <code>pg-dev-init</code>）</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p>一台服务器服务多个项目：<code>pg-dev-server</code> <strong>只装一次</strong>，之后每个项目各自 <code>pg-dev-init</code>，互不影响。</p>
+
+      <h3>东西落在哪：两处目录，一处真相</h3>
+<pre><code> 开发机：项目仓根 .pg-ops/                     服务器：/opt/pg-ops/（root 700，真相源）
+ （整目录 gitignore + Read deny）
+ ┌───────────────────────────────┐          ┌────────────────────────────────────┐
+ │ pg-dev-server.env  服务器参数 │          │ handover.md      服务器交接文档     │
+ │ pg-dev-init.env    建库参数   │   scp    │ projects/&lt;库名&gt;.md 账号与连接串     │
+ │ build/*.sh         自包含脚本 │ ───────▶ │ bin/             脚本，可原地重跑   │
+ │ handover.md        文档副本   │ ◀─────── │ bin/diag/        只读诊断脚本       │
+ │ projects/<库名>.md 文档副本   │  fetch   │ postgres.pass    超级用户网络口令   │
+ └───────────────────────────────┘          └────────────────────────────────────┘</code></pre>
+      <ul>
+        <li>口令在<strong>服务器</strong>首次生成、之后沿用；开发机不保存口令，副本只是取回给项目管理者看的。</li>
+        <li>想知道任何事 → <code>pgops-fetch.sh &lt;host&gt; &lt;远端路径&gt;</code> 取回成本地文件，<strong>人自己 <code>cat</code></strong>。不用重跑任何脚本；真相在服务器上。</li>
+        <li>模型对 <code>.pg-ops/</code> 的所有读写只经三个工具脚本：<code>pgops-env.sh</code>（读/写/打星展示）、<code>pgops-fetch.sh</code>（取回远端文档）、<code>pgops-guard.sh</code>（幂等落 gitignore / claudeignore / settings deny）。</li>
+      </ul>
+
+      <h3>pg-sync：唯一「模型完全不参与执行」的一段</h3>
+
+      <figure>
+        <div class="figwrap">
+        <svg viewBox="0 0 900 320" role="img" aria-label="pg-sync 两侧分工：生产机四个脚本永远由人执行，经 rsync 或 OSS 传到开发机，开发机三个脚本默认人跑">
+          <!-- prod -->
+          <rect x="8" y="30" width="330" height="212" stroke-width="1.5" style="fill:var(--alert-soft);stroke:var(--alert)"/>
+          <text x="24" y="54" font-size="13" font-weight="600" style="fill:var(--alert)">生产机 · 永远人跑，无委托</text>
+          <rect x="24" y="66" width="298" height="34" stroke-width="1" style="fill:var(--surface);stroke:var(--alert)"/>
+          <text x="36" y="87" font-size="11.5" fill="currentColor" style="font-family:var(--f-mono)">00-inventory  只读盘点 → plan.tsv</text>
+          <rect x="24" y="106" width="144" height="34" stroke-width="1" style="fill:var(--surface);stroke:var(--alert)"/>
+          <text x="34" y="127" font-size="11" fill="currentColor" style="font-family:var(--f-mono)">10-dump-schema</text>
+          <rect x="178" y="106" width="144" height="34" stroke-width="1" style="fill:var(--surface);stroke:var(--alert)"/>
+          <text x="188" y="127" font-size="11" fill="currentColor" style="font-family:var(--f-mono)">20-dump-data</text>
+          <rect x="24" y="146" width="298" height="34" stroke-width="1" style="fill:var(--surface);stroke:var(--alert)"/>
+          <text x="36" y="167" font-size="11.5" fill="currentColor" style="font-family:var(--f-mono)">30-transport-rsync | -oss</text>
+          <text x="24" y="200" font-size="11.5" fill="currentColor">每步起手：身份核对 · 只读会话 · 锁槽账</text>
+          <text x="24" y="218" font-size="11.5" fill="currentColor">磁盘账 · lock-wait-timeout · nice/ionice</text>
+          <text x="24" y="236" font-size="11.5" font-weight="600" style="fill:var(--alert)">任一不过即拒跑</text>
+
+          <!-- transport -->
+          <line x1="340" y1="130" x2="452" y2="130" stroke="currentColor" stroke-width="3" marker-end="url(#ar)"/>
+          <text x="396" y="118" text-anchor="middle" font-size="11.5" fill="currentColor">rsync（同内网）</text>
+          <text x="396" y="152" text-anchor="middle" font-size="11.5" fill="currentColor">或 OSS（跨云中转）</text>
+
+          <!-- dev -->
+          <rect x="456" y="30" width="330" height="212" stroke-width="1.5" style="fill:var(--ops-soft);stroke:var(--ops)"/>
+          <text x="472" y="54" font-size="13" font-weight="600" style="fill:var(--ops)">开发机 · 默认人跑，说了才委托</text>
+          <rect x="472" y="66" width="298" height="34" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="484" y="87" font-size="11.5" fill="currentColor" style="font-family:var(--f-mono)">receive-setup | fetch-oss（sha256）</text>
+          <rect x="472" y="106" width="298" height="34" stroke-width="1" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="484" y="127" font-size="11.5" fill="currentColor" style="font-family:var(--f-mono)">restore-schema  建 &lt;库&gt;_sync</text>
+          <rect x="472" y="146" width="298" height="34" stroke-width="2" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="484" y="167" font-size="11.5" fill="currentColor" style="font-family:var(--f-mono)">restore-data → rename 切换</text>
+          <text x="472" y="200" font-size="11.5" fill="currentColor">比对 system_identifier，拒绝同集群</text>
+          <text x="472" y="218" font-size="11.5" fill="currentColor">DATA_RULES 缺省 * full（保守缺省）</text>
+
+          <!-- bottom rule -->
+          <rect x="8" y="258" width="778" height="50" stroke-width="2" style="fill:var(--surface);stroke:var(--alert)"/>
+          <text x="24" y="280" font-size="12.5" font-weight="600" style="fill:var(--alert)">ADR-0001 硬约束</text>
+          <text x="24" y="299" font-size="12" fill="currentColor">模型 MUST NOT 读生产侧 env，也 MUST NOT 要求人把生产机的输出贴回会话。生产侧脚本渲染成「脚本 + 独立 env 模板」的 bundle 目录整个复制过去，敏感项由人在生产机上填。</text>
+        </svg>
+        </div>
+        <figcaption>生产侧无「委托」这一说。<code>nice</code>/<code>ionice</code> 只限速 <code>pg_dump</code>/<code>psql</code>/<code>zstd</code> 这些<strong>客户端</strong>进程，不影响 PG 服务端 backend——服务端那边靠的是 <code>-t</code> include 清单、逐表短事务、<code>lock_timeout</code> 与人自己选错峰时段。</figcaption>
+      </figure>
+
+      <div class="note">
+        <span class="lbl">为什么缺省是整库全量</span>
+        <p><code>DATA_RULES</code> 不写任何规则时同步整库（<code>* full</code>）。这是<strong>故意的保守缺省</strong>：遗漏一条规则的后果是「多同步了几张表」，而不是「该同步的表悄悄被跳过」。要裁剪就显式加规则。</p>
+      </div>
+    </section>
+
+    <!-- ============ 06 ============ -->
+    <section id="security">
+      <h2><span class="n">05</span>凭据与边界</h2>
+
+      <figure>
+        <div class="figwrap">
+        <svg viewBox="0 0 900 200" role="img" aria-label="凭据边界二分：模型只看得到非密钥配置与密码三态，交接文档与生产 env 只有人看得见">
+          <rect x="8" y="20" width="428" height="164" stroke="currentColor" stroke-width="1.5" style="fill:var(--surface)"/>
+          <text x="24" y="44" font-size="13" fill="currentColor" font-weight="600">模型看得见</text>
+          <line x1="24" y1="54" x2="416" y2="54" stroke="currentColor" stroke-width="1" opacity=".25"/>
+          <text x="24" y="76" font-size="11.5" fill="currentColor">host / port / dbname</text>
+          <text x="24" y="93" font-size="11" fill="currentColor" opacity=".7">非密钥配置信息</text>
+          <text x="24" y="118" font-size="11.5" fill="currentColor">密码字段的三态</text>
+          <text x="24" y="135" font-size="11" style="font-family:var(--f-mono)">absent / placeholder / set</text>
+          <text x="24" y="160" font-size="11.5" fill="currentColor">工具脚本的 stdout</text>
+          <text x="24" y="177" font-size="11" fill="currentColor" opacity=".7">只有路径与非口令单值</text>
+
+          <rect x="452" y="20" width="440" height="164" stroke-width="1.5" style="fill:var(--surface);stroke:var(--ops)"/>
+          <text x="468" y="44" font-size="13" font-weight="600" style="fill:var(--ops)">只有人看得见</text>
+          <line x1="468" y1="54" x2="876" y2="54" stroke-width="1" opacity=".3" style="stroke:var(--ops)"/>
+          <text x="468" y="76" font-size="11.5" fill="currentColor" style="font-family:var(--f-mono)">/opt/pg-ops/handover.md</text>
+          <text x="468" y="93" font-size="11.5" fill="currentColor" style="font-family:var(--f-mono)">projects/&lt;库名&gt;.md</text>
+          <text x="468" y="110" font-size="11" fill="currentColor" opacity=".7">登录服务器 sudo cat</text>
+          <text x="468" y="135" font-size="11.5" fill="currentColor">取回到 .pg-ops/ 的本地副本</text>
+          <text x="468" y="160" font-size="11.5" fill="currentColor">生产侧 env（pg-sync）</text>
+          <text x="468" y="177" font-size="11" fill="currentColor" opacity=".7">ADR-0001</text>
+        </svg>
+        </div>
+        <figcaption>模型对 <code>.pg-ops/</code> 的一切读写只经三个工具脚本；真相源永远在服务器 <code>/opt/pg-ops/</code>，人自己 <code>cat</code>。</figcaption>
+      </figure>
+
+      <div class="tw">
+      <table>
+        <thead><tr><th>边界</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td><strong>凭据只走 <code>PGPASSWORD</code></strong></td><td>从不进 argv、从不字符串拼进 SQL。</td></tr>
+          <tr><td><strong>口令不进模型输出</strong></td><td><code>handover.md</code> / <code>projects/*.md</code> 的内容 MUST NOT 打到 stdout——模型的回复也是一种 stdout。</td></tr>
+          <tr><td><strong>三道防线</strong></td><td>脚本不打 stdout → 人不 <code>cat</code> → <code>settings.json</code> 的 <code>Read(./.pg-ops/**)</code> deny。Codex 宿主没有第三道；<code>.claudeignore</code> 是消费方约定，<strong>不算防线</strong>。</td></tr>
+          <tr><td><strong>生产守卫</strong></td><td><code>PG_OPS_ROLE=dev</code> 缺失即拒跑；占位密码 <code>CHANGE_ME</code> 必须被拒；<code>pg-sync</code> dev 侧比对 <code>system_identifier</code> 拒绝同集群。</td></tr>
+          <tr><td><strong>生产侧脚本</strong></td><td>只生成 bundle、模型不读生产 env、不接触敏感值（ADR-0001）。</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ============ 07 ============ -->
+    <section id="stuck">
+      <h2><span class="n">06</span>卡住了？速查</h2>
+      <div class="tw">
+      <table>
+        <thead><tr><th>现象</th><th>大概率原因</th><th>怎么办</th></tr></thead>
+        <tbody>
+          <tr><td><code>pg-dev-init</code> 说 PgBouncer 是旧版 userlist 模式</td><td>目标机跑的 <code>pg-dev-server</code> 不是最新版</td><td>先升级 skill 再重跑一次装机（幂等）</td></tr>
+          <tr><td>升级时报非 ff</td><td>运行 checkout 被改过</td><td>运行 checkout 只读；改动应发生在开发 checkout</td></tr>
+          <tr><td><code>pytest</code> 跑失败</td><td>装机 / 建库脚本本机只能语法检查（<code>bash -n</code>），MUST 在目标 Ubuntu 机上以 root 真跑验证</td><td>见 <code>CLAUDE.md</code>「常用命令」</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ============ 07 ============ -->
+    <section id="ref">
+      <h2><span class="n">07</span>速查表</h2>
+      <h4>三个 skill + 一个升级工具</h4>
+      <div class="cards">
+        <div class="card ops"><span class="lane">运维线</span><span class="nm">pg-dev-server</span><p>装一台开发 DB 服务器的基础环境：PG18 + PgBouncer×2 + Redis，全回环监听。</p></div>
+        <div class="card ops"><span class="lane">运维线</span><span class="nm">pg-dev-init</span><p>给一个项目建库 + owner 角色 + scratch 库，只需库名一项参数。</p></div>
+        <div class="card ops"><span class="lane">运维线</span><span class="nm">pg-sync</span><p>生产 → 开发快照，schema 与 data 两阶段分开。</p></div>
+        <div class="card tool"><span class="lane">工具线</span><span class="nm">pg-ops-upgrade</span><p>升级运行 checkout：pull → setup → 显示版本。</p></div>
+      </div>
+
+      <h4>两份 ADR — 想知道「为什么这么设计」时读</h4>
+      <div class="tw">
+      <table>
+        <thead><tr><th>ADR</th><th>讲什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>0001</code></td><td>生产侧脚本是 bundle，模型永不读生产 env</td></tr>
+          <tr><td><code>0002</code></td><td>dev 侧模型不碰 <code>.pg-ops/</code>，IO 经工具脚本</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h4>相关文档</h4>
+      <ul>
+        <li><code>docs/skills-guide.md</code> — 这份手册的 Markdown 版（同内容，Mermaid 图）</li>
+        <li><code>docs/quickstart.md</code> — 运维线三场景的照做清单</li>
+        <li><code>docs/runbook-pg-repack.md</code> · <code>docs/runbook-pg-major-upgrade-16-to-18.md</code> — 两份运维 runbook</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  if (!('IntersectionObserver' in window)) { return; }
+  var visible = {};
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting ? e.intersectionRatio : 0; });
+    var best = null, bestVal = 0;
+    sections.forEach(function (s) {
+      var v = visible[s.id] || 0;
+      if (v > bestVal) { bestVal = v; best = s.id; }
+    });
+    links.forEach(function (a) { a.classList.remove('on'); });
+    if (best && map[best]) { map[best].classList.add('on'); }
+  }, { rootMargin: '-10% 0px -60% 0px', threshold: [0, 0.15, 0.5, 1] });
+  sections.forEach(function (s) { io.observe(s); });
+  if (links[0]) { links[0].classList.add('on'); }
+})();
+</script>
