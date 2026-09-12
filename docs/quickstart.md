@@ -35,6 +35,7 @@
 | 问 | 为什么问你 | 缺省 |
 |---|---|---|
 | 机器规格（核 / 内存） | 定 swap、shared_buffers、Redis maxmemory | 按 2 核 2G |
+| Redis 里有没有无 TTL 的持久键（吊销 / 锁 / 计数） | 定打满时淘汰谁（`REDIS_MAXMEMORY_POLICY`） | `volatile-lru`，只淘汰带 TTL 的键 |
 | 生产 PG 大版本 | 开发库 MUST 与生产一致 | 18 |
 | 数据放哪块盘 | 有没有独立数据盘只有你知道 | `/data`；没有就留空用 `/var/lib` |
 | SSH 来源白名单 | 办公网出口 IP | 留空 = 靠密钥 + fail2ban |
@@ -125,7 +126,7 @@ ssh -N -L 5432:127.0.0.1:5432 -L 6432:127.0.0.1:6432 -L 7432:127.0.0.1:7432 -L 6
 | 这台机上有哪些项目库 | `ssh <host> sudo ls /opt/pg-ops/projects/` | 不含口令，可直接打进回复 |
 | 服务器信息 / Redis 口令 / 隧道 / 安全清单 | `bash <skill-dir>/scripts/pgops-fetch.sh <host> /opt/pg-ops/handover.md`，取回后自己 `cat`；或登录服务器亲自 `sudo cat` | 模型不会把内容打进回复 |
 | 交接文档模板升级了，只想刷新文档 | 说「只重生成交接文档」→ `PG_OPS_DOCS_ONLY=1`，不装包不改配置不重启 | 服务器与副本都更新 |
-| 调服务器参数（swap / shared_buffers / Redis maxmemory） | 改 `.pg-ops/pg-dev-server.env` 重渲染重跑装机脚本 | 幂等；PG 配置没变不重启 |
+| 调服务器参数（swap / shared_buffers / Redis maxmemory / 淘汰策略） | 改 `.pg-ops/pg-dev-server.env` 重渲染重跑装机脚本 | 幂等；PG 配置没变不重启 |
 | 服务器上的脚本想原地重跑 | `sudo bash /opt/pg-ops/bin/<脚本>.sh` | 脚本执行时已自装到 bin/，不用再上传 |
 | 排查连接 / CPU 问题 | `sudo /opt/pg-ops/bin/diag/pg-conn-audit.sh 5`、`sudo /opt/pg-ops/bin/diag/pgb-console.sh` | 只读诊断，说明见 `bin/diag/README.md` |
 

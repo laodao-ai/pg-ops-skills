@@ -30,7 +30,10 @@ fi
 
 : "${PG_MAJOR:?}" "${SSH_TARGET:=<host>}" "${DATA_ROOT:=}" "${PGDG_MIRROR:=}" "${PGB_PORT:=6432}" "${PGB_SESSION_PORT:=7432}" "${PGB_MAX_CLIENT_CONN:=200}" "${PGB_DEFAULT_POOL_SIZE:=20}" \
   "${PGB_AUTH_PASS:=}" "${REDIS_PORT:=6379}" "${REDIS_PASS:=}" "${PG_SUPER_PASS:=}" "${PUBLIC_IP:=}" \
-  "${SWAP_GB:=2}" "${PG_SHARED_BUFFERS:=256MB}" "${REDIS_MAXMEMORY:=256mb}" "${PG_STAT_STATEMENTS_MAX:=50000}"
+  "${SWAP_GB:=2}" "${PG_SHARED_BUFFERS:=256MB}" "${REDIS_MAXMEMORY:=256mb}" "${REDIS_MAXMEMORY_POLICY:=volatile-lru}" "${PG_STAT_STATEMENTS_MAX:=50000}"
+# 淘汰策略值域早失败：写进 redis.conf 后 Redis 起不来才发现太晚。*-lrm 是 Redis 8.6 新增，apt 装的 7.x 会在启动时自己拒绝
+[[ "${REDIS_MAXMEMORY_POLICY}" =~ ^(noeviction|(allkeys|volatile)-(lru|lfu|lrm|random)|volatile-ttl)$ ]] \
+    || die "REDIS_MAXMEMORY_POLICY 非法: ${REDIS_MAXMEMORY_POLICY}（可选 noeviction / allkeys-{lru,lfu,lrm,random} / volatile-{lru,lfu,lrm,random,ttl}）"
 [[ "${REDIS_PASS}" != "CHANGE_ME" ]] || REDIS_PASS=""
 [[ "${PG_SUPER_PASS}" != "CHANGE_ME" ]] || PG_SUPER_PASS=""
 command -v perl >/dev/null || die "缺 perl（Ubuntu 自带，不该缺）"
@@ -125,7 +128,7 @@ write_handover() {
            PG_VERSION="$(psql --version | awk '{print $3}')" PGB_VERSION="$(pgbouncer --version 2>&1 | head -1 | awk '{print $2}')" \
            REDIS_VERSION="$(redis-server --version | sed -n 's/.*v=\([^ ]*\).*/\1/p')" \
            SSH_TARGET PUBLIC_IP="${PUBLIC_IP:-<公网IP>}" PG_MAJOR PGB_PORT PGB_SESSION_PORT PGB_DEFAULT_POOL_SIZE REDIS_PORT REDIS_PASS="${REDIS_PASS:-<未设：跑一次完整装机>}" \
-           PG_SUPER_PASS="${PG_SUPER_PASS:-<未设：跑一次完整装机>}" REDIS_MAXMEMORY="${REDIS_MAXMEMORY:-不限}" \
+           PG_SUPER_PASS="${PG_SUPER_PASS:-<未设：跑一次完整装机>}" REDIS_MAXMEMORY="${REDIS_MAXMEMORY:-不限}" REDIS_MAXMEMORY_POLICY \
            SWAP_GB DATA_ROOT="${DATA_ROOT:-/var/lib}" PG_OPS_DIR
     # 重跑装机时保留加固脚本写入的「主机加固状态」块（模板里只有「未执行」占位）
     HANDOVER="${PG_OPS_DIR}/handover.md"; OLD_HARDEN_BLOCK=""
@@ -380,7 +383,8 @@ ok "PgBouncer 两实例：127.0.0.1:${PGB_PORT} transaction · 127.0.0.1:${PGB_S
 [[ -n "${REDIS_PASS}" ]] || REDIS_PASS="$(openssl rand -hex 16)"
 sed -i -E "s|^#? *bind .*|bind 127.0.0.1 -::1|; s|^#? *port .*|port ${REDIS_PORT}|; s|^#? *requirepass .*|requirepass ${REDIS_PASS}|" "${REDIS_CONF}"
 grep -q "^requirepass " "${REDIS_CONF}" || echo "requirepass ${REDIS_PASS}" >> "${REDIS_CONF}"
-# 内存上限：缺省无上限，缓存无限增长会挤死同机的 PG；开发环境按 LRU 淘汰即可。REDIS_MAXMEMORY 留空 = 不限
+# 内存上限：缺省无上限，缓存无限增长会挤死同机的 PG。REDIS_MAXMEMORY 留空 = 不限；打满淘汰谁由 REDIS_MAXMEMORY_POLICY 定
+# （引擎不替消费项目拍板：项目在 Redis 里存无 TTL 的持久键时 allkeys-* 会静默淘汰它们，所以缺省 volatile-lru 只淘汰带 TTL 的键）
 sed -i -E '/^maxmemory /d; /^maxmemory-policy /d' "${REDIS_CONF}"
 if [[ -n "${DATA_ROOT}" ]]; then
     mkdir -p "${DATA_ROOT}/redis"; chown redis:redis "${DATA_ROOT}/redis"; chmod 750 "${DATA_ROOT}/redis"
@@ -391,11 +395,11 @@ if [[ -n "${DATA_ROOT}" ]]; then
     systemctl daemon-reload
 fi
 if [[ -n "${REDIS_MAXMEMORY}" ]]; then
-    printf 'maxmemory %s\nmaxmemory-policy allkeys-lru\n' "${REDIS_MAXMEMORY}" >> "${REDIS_CONF}"
+    printf 'maxmemory %s\nmaxmemory-policy %s\n' "${REDIS_MAXMEMORY}" "${REDIS_MAXMEMORY_POLICY}" >> "${REDIS_CONF}"
 fi
 systemctl enable --now redis-server >/dev/null 2>&1
 systemctl restart redis-server
-ok "Redis 监听 127.0.0.1:${REDIS_PORT}（requirepass 已设，maxmemory=${REDIS_MAXMEMORY:-不限}）"
+ok "Redis 监听 127.0.0.1:${REDIS_PORT}（requirepass 已设，maxmemory=${REDIS_MAXMEMORY:-不限}，maxmemory-policy=${REDIS_MAXMEMORY_POLICY}）"
 
 # ---- 6. 探活（任何一项不通即失败退出，不给假绿）----------------------------------
 pg_isready -h 127.0.0.1 -p 5432 >/dev/null || die "探活失败：5432 直连不可达"

@@ -22,7 +22,7 @@
 | 系统 | {{OS_PRETTY}} |
 | PostgreSQL | {{PG_VERSION}}，直连口 127.0.0.1:5432，数据目录 `{{DATA_ROOT}}/postgresql/{{PG_MAJOR}}/main` |
 | PgBouncer | {{PGB_VERSION}}，两个实例：127.0.0.1:{{PGB_PORT}} **transaction** 池 · 127.0.0.1:{{PGB_SESSION_PORT}} **session** 池（区别与选法见第 3 节），都是 auth_query 模式（新建的库角色自动可用，无需登记） |
-| Redis | {{REDIS_VERSION}}，127.0.0.1:{{REDIS_PORT}}，数据目录 `{{DATA_ROOT}}/redis`，maxmemory {{REDIS_MAXMEMORY}}，allkeys-lru |
+| Redis | {{REDIS_VERSION}}，127.0.0.1:{{REDIS_PORT}}，数据目录 `{{DATA_ROOT}}/redis`，maxmemory {{REDIS_MAXMEMORY}}，maxmemory-policy {{REDIS_MAXMEMORY_POLICY}} |
 | swap | {{SWAP_GB}} G |
 
 所有服务只监听回环地址，公网只开 SSH。任何客户端都经 SSH 隧道进来。

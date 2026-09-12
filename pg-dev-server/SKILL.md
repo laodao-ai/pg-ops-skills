@@ -9,7 +9,7 @@ description: 引导填参并生成一台 Ubuntu 开发数据库服务器的自�
 
 - 新开一台**开发**数据库服务器（与生产库物理分离）。一台服务器服务多个项目：本 skill 只装一次基础环境，
   之后每个项目各自用 `pg-dev-init` 建库，互不影响。
-- 已装过的机器要调资源参数（swap / shared_buffers / Redis maxmemory）或升级本 skill 的配置：重新生成脚本再跑一遍，幂等。
+- 已装过的机器要调资源参数（swap / shared_buffers / Redis maxmemory 与淘汰策略）或升级本 skill 的配置：重新生成脚本再跑一遍，幂等。
 
 **不做的事**：不建任何项目的库 / 角色（`pg-dev-init`）；不用于生产（生产的角色 / 备份 / 监控分别是
 `pg-roles` / `pg-backup` / `pg-monitor`）；不配云安全组（控制台人工项，要求写在交接文档里）。
@@ -53,6 +53,7 @@ ssh <host> sudo test -f /opt/pg-ops/handover.md && echo INSTALLED || echo FRESH
 | 目标主机的 ssh 别名 / `user@host` | 用来拼命令与命名产物 | 命令模板、输出文件名 |
 | 机器规格（核数 / 内存） | 决定三项资源上限 | `SWAP_GB` / `PG_SHARED_BUFFERS` / `REDIS_MAXMEMORY`，缺省按 2 核 2G |
 | 生产 PG 大版本 | 开发库 MUST 与生产一致 | `PG_MAJOR`，缺省 18 |
+| 项目会不会在 Redis 里放无 TTL 的持久键（吊销 / 锁 / 计数） | 决定打满时淘汰谁；引擎不知道项目怎么用 Redis | `REDIS_MAXMEMORY_POLICY`，缺省 `volatile-lru`（只淘汰带 TTL 的键，纯缓存项目效果与 `allkeys-lru` 相同）；确认全是缓存可填 `allkeys-lru` |
 | 数据放哪块盘 | 有没有独立数据盘只有人知道用途；委托模式下可先 `ssh <host> df -h` 看挂载点再提议 | `DATA_ROOT`，缺省 `/data`；没有数据盘就留空用 `/var/lib` |
 | SSH 来源白名单 | 有没有固定出口 IP、办公网段是什么，只有人知道 | `SSH_ALLOW_FROM`（CIDR 空格分隔）；没有固定 IP 就留空，加固脚本改靠密钥 + fail2ban |
 | 机器在不在国内 | 决定要不要 PGDG 镜像；能从 `/etc/apt/sources.list.d/ubuntu.sources` 的镜像地址推出来就直接提议 | `PGDG_MIRROR`，国内填 aliyun 镜像，否则留空 |
@@ -104,7 +105,7 @@ ssh -t <host> 'sudo bash /tmp/install-<host>.sh; rm -f /tmp/install-<host>.sh'
 脚本自身做的事（供解释输出）：守卫（`PG_OPS_ROLE=dev`、Ubuntu、root）→ 自装到 `/opt/pg-ops/bin` + 写 `README.md` → 解内嵌诊断脚本包到 `/opt/pg-ops/bin/diag/`（渲染版；直接版回退拷贝仓内 `shared/diag/`）→ swap → PGDG 源（发行版自带对应大版本则跳过）
 → 数据盘（先告诉 postgresql-common 新集群放 `DATA_ROOT`，再装包；已有集群在别处只警告不迁移）→ 装三个包 → PG 回环 + scram + `shared_buffers` + 审计日志（conf.d；配置有变才 restart，重跑不打断连接）
 → 超级用户 `postgres` 网络口令（首次生成存 `/opt/pg-ops/postgres.pass`、之后沿用；DB 工具经隧道连 5432 看 / 管全部库用，PgBouncer 拒绝超级用户）→ PgBouncer 认证角色 + `auth_query`
-函数 → PgBouncer 两实例（transaction 池 `PGB_PORT`、session 池 `PGB_SESSION_PORT`，第二实例是脚本写的 systemd 单元 `pgbouncer-session`）→ Redis 回环 + requirepass + maxmemory/LRU → 探活（任一失败即退出，含 postgres 网络口令登录）→ 写服务器交接文档 `/opt/pg-ops/handover.md` → 打印隧道命令。
+函数 → PgBouncer 两实例（transaction 池 `PGB_PORT`、session 池 `PGB_SESSION_PORT`，第二实例是脚本写的 systemd 单元 `pgbouncer-session`）→ Redis 回环 + requirepass + maxmemory + 淘汰策略（`REDIS_MAXMEMORY_POLICY`，值域校验早失败）→ 探活（任一失败即退出，含 postgres 网络口令登录）→ 写服务器交接文档 `/opt/pg-ops/handover.md` → 打印隧道命令。
 
 ### ④ 验证与交接
 
