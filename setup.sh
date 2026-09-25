@@ -7,6 +7,9 @@
 # marker — MSYS `ln -s` silently degrades to a copy that `git pull` won't
 # refresh, so on Windows we copy explicitly and stamp a `.pg-ops` marker
 # (holding the installed HEAD sha) for ownership + versioning; update = re-run.
+# Windows 下仓内 `pg-ops-shared/`（诊断脚本 + 口令工具的唯一落点）走与四个 skill 目录相同的
+# 独占安装语义（自属整份替换 / 非自属拒装），每个宿主先装它再装四个 skill；Unix 不装它，
+# 软链天然经物理路径解回仓内。
 #
 # Conflict policy:
 #   - target already a symlink pointing at the same path we'd install -> success,
@@ -14,6 +17,9 @@
 #   - target exists as a real directory, or a symlink pointing elsewhere, or a
 #     regular file -> fail loud with a migration command. MUST NOT overwrite or
 #     recursively delete anything we don't own.
+#   - Windows: any symlink at the target (valid or dangling) is refused outright
+#     — copy mode does not adopt symlinks, ownership is judged by the `.pg-ops`
+#     marker on a real directory only.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,6 +49,13 @@ install_skill() {
 
     if [[ "${IS_WINDOWS}" -eq 1 ]]; then
         # Windows(Git Bash): 拷贝 + marker。只覆盖本脚本自己装的拷贝，绝不动别人的目录。
+        if [[ -L "${target}" ]]; then
+            # 软链一律拒装（不跟随判所有权），有效软链、悬空软链都在此拦下；软链与被指向目录都不动。
+            fail "problem: ${target} 是软链（Windows 拷贝模式不接管软链）"
+            fail "cause: 该路径被非本脚本管理的内容占用，拒绝覆盖"
+            fail "fix: 确认内容后手动迁移，例如 mv '${target}' '${target}.bak'，再重跑本脚本"
+            exit 1
+        fi
         if [[ -e "${target}" ]] && ! is_our_copy "${target}"; then
             fail "problem: ${target} 已存在（非本脚本管理的目录/普通文件）"
             fail "cause: 该路径被非本脚本安装的内容占用，拒绝覆盖"
@@ -83,28 +96,19 @@ install_skill() {
 
 info "=== pg-ops setup ==="
 for dest in "${TARGET_DIRS[@]}"; do
+    if [[ "${IS_WINDOWS}" -eq 1 ]]; then
+        # pg-ops-shared 先于四个 skill 安装：冲突在任何 rm -rf 之前 fail，本宿主已有的 skill
+        # 拷贝不受影响。与 skill 目录同一套独占安装语义（自属整份替换 / 非自属拒装）。
+        install_skill "pg-ops-shared" "${dest}"
+    fi
     install_skill "pg-dev-server" "${dest}"
     install_skill "pg-dev-init" "${dest}"
     install_skill "pg-sync" "${dest}"
     install_skill "pg-ops-upgrade" "${dest}"
     # 规划中的 skill（未实现前不安装）：pg-backup · pg-monitor · pg-roles
-    if [[ "${IS_WINDOWS}" -eq 1 ]]; then
-        # Windows 拷贝模式下 pg-dev-server/scripts/../../shared 落在 <dest>/shared，不像 Unix
-        # 软链那样自然可达（pwd -P 解回真源），需把 shared/ 也拷一份到各宿主目录。
-        # <dest>/shared 是所有 skill 套件共用的落点，别的套件也可能往里拷东西，
-        # 所以合并拷贝（只补/覆盖本仓的文件，不清空已有内容）——不能用 install_skill 原有的
-        # "先 rm -rf 整目录再 cp -r" 整份替换语义，那会清掉别人拷进去的脚本。
-        if [[ -L "${dest}/shared" ]] || { [[ -e "${dest}/shared" ]] && [[ ! -d "${dest}/shared" ]]; }; then
-            fail "problem: ${dest}/shared 已存在但不是普通目录（软链或文件）"
-            fail "cause: 该路径被非本脚本管理的内容占用，拒绝合并拷贝"
-            fail "fix: 确认内容后手动迁移，例如 mv '${dest}/shared' '${dest}/shared.bak'，再重跑本脚本"
-            exit 1
-        fi
-        mkdir -p "${dest}/shared"
-        cp -r "${REPO_DIR}/shared/." "${dest}/shared/"
-        git -C "${REPO_DIR}" rev-parse HEAD > "${dest}/shared/${MARKER}" 2>/dev/null \
-            || echo unknown > "${dest}/shared/${MARKER}"
-        pass "shared @ ${dest} — 已合并拷贝（Windows），更新请重跑 setup.sh"
+    if [[ "${IS_WINDOWS}" -eq 1 ]] && [[ -f "${dest}/shared/${MARKER}" ]]; then
+        # 旧版本在 <dest>/shared 留下的安装残留：本仓不再读写它，只提示、不删不改。
+        info "${dest}/shared 是旧安装残留，确认其中无他仓仍在使用的文件后可手动删除"
     fi
 done
 if [[ "${IS_WINDOWS}" -eq 1 ]]; then

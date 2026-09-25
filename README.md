@@ -52,7 +52,8 @@ pg-dev-server/         服务器基础环境装机（SKILL.md + env.example + sc
 pg-dev-init/           给一个项目立 PG 开发环境：前置检查 + 建库 / 角色（同结构，scripts/provision.sh + templates/project.md）
 pg-sync/               生产→开发快照同步：scripts/lib.sh 两侧共用 + scripts/prod|dev/ 分脚本 + render.sh bundle|dev 两种产物
 pg-ops-upgrade/        运行 checkout 升级三连（pull → setup → 显示版本）
-shared/                跨 skill 共用的 shell 库：
+pg-ops-shared/         跨 skill 共用的 shell 库（Unix 下留仓内、经 4 个 skill 的软链可达；
+                        Windows 下额外独占拷贝到宿主，见 ADR-0003）：
                         diag/ 只读诊断脚本（render.sh 内嵌上服务器）；
                         pgops-env.sh / pgops-fetch.sh / pgops-guard.sh / pgops-lib.sh dev 侧模型不碰口令的工具脚本（ADR-0002）
 tests/                 pytest：setup.sh 安装逻辑 + pgops-fetch.sh 取回逻辑（离线，秒级）
@@ -62,8 +63,8 @@ docs/                  runbook（人读）与规划文档
   quickstart.md         快速上手：三种场景（搭新服务器 / 项目接入已有服务器 / 换密与查账号）
   runbook-pg-repack.md  表膨胀处置（pgstattuple 量化 + pg_repack 在线压缩）
   runbook-pg-major-upgrade-16-to-18.md  存量 16 生产机升 18（pg_upgrade 原地，含 TimescaleDB 约束）
-  adr/                   架构决策记录：0001 生产侧 bundle 形态、0002 dev 侧模型不碰 .pg-ops/
-  scripts/               只读诊断脚本已迁至 shared/diag/；本目录只留 pgbouncer-second-instance.sh
+  adr/                   架构决策记录：0001 生产侧 bundle 形态、0002 dev 侧模型不碰 .pg-ops/、0003 各仓装到带仓名前缀的独占目录
+  scripts/               只读诊断脚本已迁至 pg-ops-shared/diag/；本目录只留 pgbouncer-second-instance.sh
                          （既有机专用，唯一会改配置）
 LICENSE                Apache-2.0
 ```
@@ -71,7 +72,7 @@ LICENSE                Apache-2.0
 ## 消费方接缝（以一个 Go 服务为例）
 
 - `hack/sync-prod-to-dev.sh` = 调 `pg-sync` + 项目三步收尾（跑迁移 / rotate-secret / 重放 fixture）。
-- `hack/backup-db.sh` / `restore-db.sh` / `ssh-tunnel.sh` 后续搬入 `shared/`，原位置留指针。
+- `hack/backup-db.sh` / `restore-db.sh` / `ssh-tunnel.sh` 后续搬入 `pg-ops-shared/`，原位置留指针。
 - 规则文档 `openspec/rules/production-ops.md` 留在项目，引用本仓 skill 做操作面。
 
 ## 许可

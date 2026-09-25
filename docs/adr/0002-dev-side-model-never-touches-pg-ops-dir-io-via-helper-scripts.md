@@ -6,8 +6,8 @@ ADR-0001 把「模型不读敏感值」定在生产侧（bundle 形态）。dev 
 打到 stdout，skill 步骤把含 postgres 超管与 Redis 口令的交接文档 cat 进模型上下文。本 ADR 把 0001 的
 原则延伸到 dev 侧：**口令与交接文档只存在于服务器 `/opt/pg-ops/` 与消费仓 `.pg-ops/` 两处文件里，
 模型的上下文不是其中之一。** 落地形态：① 脚本 stdout 只打「已写入 <路径>」；② skill 对 `.pg-ops/`
-的一切读写经 `shared/pgops-env.sh`（get 只回显一个非口令键 / set 改已知键 / show 打参数段口令打星）
-与 `shared/pgops-fetch.sh`（远端文档取回到本地文件，stdout 只打路径）两个子进程完成，模型不用
+的一切读写经 `pg-ops-shared/pgops-env.sh`（get 只回显一个非口令键 / set 改已知键 / show 打参数段口令打星）
+与 `pg-ops-shared/pgops-fetch.sh`（远端文档取回到本地文件，stdout 只打路径）两个子进程完成，模型不用
 Read / Edit / Write，也不用裸 cat / sed；③ skill ② 步在消费仓 `.claude/settings.json` 落
 `Read(./.pg-ops/**)` deny。选这个形态的直接依据是 Claude Code 官方文档：`Read` deny 连带拦
 Edit / Write、Bash 里被识别的文件命令（cat / head / tail / sed）与 `>` `<` 重定向目标，只放过
@@ -17,7 +17,7 @@ Edit / Write、Bash 里被识别的文件命令（cat / head / tail / sed）与 
 ## Considered Options
 
 - **全目录 `Read` deny + 工具脚本子进程（选中）**：模型零接触；`pg-dev-server.env` 有三个可填口令的键，
-  整目录 deny 才没有洞。代价 = `shared/` 多两个小脚本，SKILL.md 的几步从「Read / Edit」改成「调工具」。
+  整目录 deny 才没有洞。代价 = `pg-ops-shared/` 多两个小脚本，SKILL.md 的几步从「Read / Edit」改成「调工具」。
 - **deny 缩到 `*.md` / `build/` / `pg-dev-init.env`，让 `pg-dev-server.env` 可 Read**：省掉 get 工具，
   但该 env 的 `PGB_AUTH_PASS` / `REDIS_PASS` / `PG_SUPER_PASS` 一旦被人填过就进上下文。未选。
 - **保留全目录 deny，用 `bash -c 'sed -i …'` 绕过去改 env**：能跑，但是在教模型绕防线，与「模型不碰」

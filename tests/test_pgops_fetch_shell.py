@@ -1,4 +1,4 @@
-"""Shell-layer tests for shared/pgops-fetch.sh's argument contract and local
+"""Shell-layer tests for pg-ops-shared/pgops-fetch.sh's argument contract and local
 landing-spot derivation (spec dev-side-secrets-boundary SEC-02, T73).
 
 No server needed: a mock `ssh` binary is put first on PATH. It never connects
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PGOPS_FETCH_SH = REPO_ROOT / "shared" / "pgops-fetch.sh"
+PGOPS_FETCH_SH = REPO_ROOT / "pg-ops-shared" / "pgops-fetch.sh"
 
 MOCK_SSH = r"""#!/bin/bash
 # Mock ssh for tests/test_pgops_fetch_shell.py — connects to nothing.

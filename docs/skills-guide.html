@@ -541,8 +541,8 @@ a:focus-visible, .rail nav a:focus-visible { outline: 2px solid var(--ops); outl
       <h2><span class="n">03</span>安装与升级</h2>
 <pre><code><span class="c"># 首次：运行 checkout 是真 clone，不软链到开发仓</span>
 git clone https://github.com/laodao-ai/pg-ops-skills.git ~/.skills/pg-ops-skills
-bash ~/.skills/pg-ops-skills/setup.sh          <span class="c"># 幂等；Unix symlink，Windows 合并拷贝</span></code></pre>
-      <p><code>setup.sh</code> 把 4 个 skill + <code>shared/</code> symlink 到 <code>~/.claude/skills/</code> 与 <code>~/.codex/skills/</code>，任何 PG 项目全局可用。</p>
+bash ~/.skills/pg-ops-skills/setup.sh          <span class="c"># 幂等；Unix symlink，Windows 独占拷贝</span></code></pre>
+      <p><code>setup.sh</code> 把 4 个 skill 安装到 <code>~/.claude/skills/</code> 与 <code>~/.codex/skills/</code>，任何 PG 项目全局可用。Unix 下 4 个 skill 都是软链，<code>pg-ops-shared/</code> 留在仓内不装宿主，脚本经软链的物理路径解回仓内引用；Windows 下 4 个 skill 与 <code>pg-ops-shared/</code> 都独占拷贝到宿主（非自属拒装，见 ADR-0003）。</p>
       <p>之后升级说「升级 pg-ops」即可：<code>git pull --ff-only</code> → <code>setup.sh</code> → 显示版本与最近 5 条变更。</p>
       <div class="codes">
         <div><b>0</b> 成功</div>

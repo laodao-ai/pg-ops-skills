@@ -31,7 +31,7 @@ fi
 : "${PG_MAJOR:?}" "${SSH_TARGET:=<host>}" "${DATA_ROOT:=}" "${PGDG_MIRROR:=}" "${PGB_PORT:=6432}" "${PGB_SESSION_PORT:=7432}" "${PGB_MAX_CLIENT_CONN:=200}" "${PGB_DEFAULT_POOL_SIZE:=20}" \
   "${PGB_AUTH_PASS:=}" "${REDIS_PORT:=6379}" "${REDIS_PASS:=}" "${PG_SUPER_PASS:=}" "${PUBLIC_IP:=}" \
   "${SWAP_GB:=2}" "${PG_SHARED_BUFFERS:=256MB}" "${REDIS_MAXMEMORY:=256mb}" "${REDIS_MAXMEMORY_POLICY:=volatile-lru}" "${PG_STAT_STATEMENTS_MAX:=50000}"
-# 淘汰策略值域早失败：写进 redis.conf 后 Redis 起不来才发现太晚。*-lrm 是 Redis 8.6 新增，apt 装的 7.x 会在启动时自己拒绝
+# 淘汰策略值域早失败：写进 redis.conf 后 Redis 起不来才发现太晚。*-lrm 是 Redis 8.6 新增，更早的版本会在启动时自己拒绝
 [[ "${REDIS_MAXMEMORY_POLICY}" =~ ^(noeviction|(allkeys|volatile)-(lru|lfu|lrm|random)|volatile-ttl)$ ]] \
     || die "REDIS_MAXMEMORY_POLICY 非法: ${REDIS_MAXMEMORY_POLICY}（可选 noeviction / allkeys-{lru,lfu,lrm,random} / volatile-{lru,lfu,lrm,random,ttl}）"
 [[ "${REDIS_PASS}" != "CHANGE_ME" ]] || REDIS_PASS=""
@@ -45,7 +45,7 @@ mkdir -p "${PG_OPS_DIR}/bin" "${PG_OPS_DIR}/projects"; chmod 700 "${PG_OPS_DIR}"
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"; SELF_DEST="${PG_OPS_DIR}/bin/pg-dev-server-install.sh"
 [[ "${SELF}" == "${SELF_DEST}" ]] || install -m 700 "${SELF}" "${SELF_DEST}"
 
-# ---- 诊断脚本：内嵌 tgz 优先，未经 render 的直接版回退拷贝仓内 shared/diag/，两者都没有就跳过 ----
+# ---- 诊断脚本：内嵌 tgz 优先，未经 render 的直接版回退拷贝仓内 pg-ops-shared/diag/，两者都没有就跳过 ----
 install_diag() {
     local diag_dir="${PG_OPS_DIR}/bin/diag"
     if [[ -n "${PG_OPS_DIAG_TGZ_B64:-}" ]]; then
@@ -56,7 +56,7 @@ install_diag() {
         chmod 755 "${diag_dir}"/*.sh 2>/dev/null || true
         ok "诊断脚本已装到 ${diag_dir}"
     else
-        local src_diag; src_diag="$(dirname "${BASH_SOURCE[0]}")/../../shared/diag"
+        local src_diag; src_diag="$(dirname "${BASH_SOURCE[0]}")/../../pg-ops-shared/diag"
         if [[ -d "${src_diag}" ]]; then
             rm -rf "${diag_dir}"
             cp -r "${src_diag}" "${diag_dir}"

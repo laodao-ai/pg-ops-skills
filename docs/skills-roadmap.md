@@ -70,7 +70,7 @@
 | `db-drift` | `pg-tune` | 同为「复用采集引擎产报告交人」心智 |
 | `db-deploy-plan` | `pg-tune` | 同上（发布前检查 = 上线后分析的镜像） |
 | `db-restore` | `pg-backup` | 备份与恢复是一件事的两半，分开会让恢复演练无家可归 |
-| `db-health` | `pg-backup` + `shared/diag/` | 体检能力已在 `shared/diag/` 七个脚本里，且经真实事故验证 |
+| `db-health` | `pg-backup` + `pg-ops-shared/diag/` | 体检能力已在 `pg-ops-shared/diag/` 七个脚本里，且经真实事故验证 |
 
 ---
 
@@ -119,7 +119,7 @@
 - **ADOPT 的必要性**：至今所有真实生产操作都发生在一台非 pg-ops 装的机器上（PG 16、别人的
   `pgbouncer.ini`、`listen_addr = 0.0.0.0`、`min_pool_size = 5`），而旧规划只有新装一条路，
   于是 `pgbouncer-second-instance.sh` 只能写成「从现有 ini 派生」的散装脚本。
-- **共用**：A 层（apt 源、PgBouncer 双实例、Redis、conf.d 托管、探活、文档渲染）抽 `shared/`。
+- **共用**：A 层（apt 源、PgBouncer 双实例、Redis、conf.d 托管、探活、文档渲染）抽 `pg-ops-shared/`。
 - **四条从真实事故来的硬要求**：见 §5.6。
 - **前置**：**按分支不同**——FRESH 消费 `pg-sizing` 的产物；**ADOPT 无前置**（只加不改，没有参数要从
   sizing 取）。2026-09-09 拍板 ADOPT **进首版**（§6.1 #1），建议拆两个 change、ADOPT 先，见 §4.3 第 1 条。
@@ -144,18 +144,18 @@
 ### 3.5 `pg-monitor`
 
 - **做什么**：exporter + Alertmanager → 钉钉加签 Webhook，分级去重；脚本版过渡。
-- **与 `shared/diag/` 的边界**：diag 是**人触发的一次性排查**，monitor 是**持续采集 + 主动告警**。
+- **与 `pg-ops-shared/diag/` 的边界**：diag 是**人触发的一次性排查**，monitor 是**持续采集 + 主动告警**。
   diag 的七个脚本已经定义了「该盯哪些信号」（CPU 相位、建连速率、每连接事务数、后端私有内存），
   monitor 的告警项应直接对齐这些信号，不另起一套。
 - **源需求**：T88。
 
 ### 3.6 `pg-tune`
 
-- **做什么**：上线后出分析报告（桶 3）。**先按 `shared/diag/` 定位 CPU 归属**（system% / 建连速率 /
+- **做什么**：上线后出分析报告（桶 3）。**先按 `pg-ops-shared/diag/` 定位 CPU 归属**（system% / 建连速率 /
   每连接事务数），再看 `pg_stat_statements` / 膨胀 / 索引使用。含原 `pg-drift`（结构漂移 diff）与
   `pg-deploy-plan`（发布步骤单）职能。
 - **建议动作落生产 MUST 走消费项目的迁移流程，本仓只出报告。**
-- **成本比排位低得多**：它的输入 `shared/diag/` 七个脚本**已经存在，且在两次真实生产事故里用过并
+- **成本比排位低得多**：它的输入 `pg-ops-shared/diag/` 七个脚本**已经存在，且在两次真实生产事故里用过并
   解决了问题**。本 skill 的实质是「把已验证的散装脚本包成 skill + 一份报告模板 + 桶 3 信号表
   （§5.4）」，不是从零做调优引擎。排位建议见 §4。
 
@@ -183,7 +183,7 @@
 - **梯队二整体等「真要新装一台生产机」这个信号**。在那之前它的产物没有消费者——`pg-sizing` 的输出
   唯一去处是 FRESH 的 env。`docs/runbook-pg-major-upgrade-16-to-18.md` 自己的结论是「有价值但不急，
   先做 case 文档的 #1～#5」，所以当前不触发。
-- **「校准值会随时间贬值」这条理由由梯队一承接**：真正在采集校准值的是 `shared/diag/`，把它
+- **「校准值会随时间贬值」这条理由由梯队一承接**：真正在采集校准值的是 `pg-ops-shared/diag/`，把它
   资产化的是 `pg-tune`，不是 `pg-sizing`。
 
 ### 4.2 依赖图（一条硬依赖 + 一条弱依赖）
@@ -203,17 +203,17 @@
 ### 4.3 对旧顺序的两处修正
 
 1. **`pg-prod-server` 的 ADOPT 分支排第一位**（拍板 #1 的直接后果）。
-   建议**拆两个 change**：ADOPT 先（只加不改、风险面小、现网那台立刻受益，A 层抽 `shared/` 在这一次
+   建议**拆两个 change**：ADOPT 先（只加不改、风险面小、现网那台立刻受益，A 层抽 `pg-ops-shared/` 在这一次
    做掉），FRESH 后（再加 PG / PgBouncer / Redis 安装与配置托管）。捆一起等于让现在能用的东西等一个
    不急的东西。
    ⚠️ **MUST NOT 把三条升级封锁（黑名单 / apt hold / needrestart list-only，§5.1 B 层）当成要等这个
    skill**——它们是三行命令加一个 `conf.d/` 文件，人上去跑一遍即可止血。ADOPT 的价值是让它幂等、
    可复核、写进交接文档，不是「唯一途径」。**现网那台是否已落这三条，待核**（见 §6.3）。
 
-2. **`pg-tune` 排第二位，且 MUST 排在 `pg-sizing` 之前**。依据是对 `shared/diag/` 的实测核对：
+2. **`pg-tune` 排第二位，且 MUST 排在 `pg-sizing` 之前**。依据是对 `pg-ops-shared/diag/` 的实测核对：
    `pg-sizing`「查库模式」（§5.3）要的输入，diag 七个脚本已经采了六成——
 
-   | `pg-sizing` 查库模式要的 | `shared/diag/` 现状 |
+   | `pg-sizing` 查库模式要的 | `pg-ops-shared/diag/` 现状 |
    |---|---|
    | `pg_database_size` | ✅ `pg-mem.sh` |
    | `pg_stat_database.xact_commit` / `numbackends` | ✅ `pg-conn-audit.sh` |
@@ -366,7 +366,7 @@ CPU 峰值 75~90% → ~15%。
 近百个后端 × 130 MB 撞上 16 GB 无 swap 的机器——page cache 被挤光、负载 200、SSH 失联、只能控制台重启。**
 
 - **上池前 MUST 算一行乘法**：各池 `pool_size` 之和 × 单后端 relcache ≤ 可用内存的一半。
-  表多的库 MUST 实测（`shared/diag/pg-mem.sh`），不套教科书的几 MB。`pg-sizing` 的输出 MUST 打印这行乘法及结论。
+  表多的库 MUST 实测（`pg-ops-shared/diag/pg-mem.sh`），不套教科书的几 MB。`pg-sizing` 的输出 MUST 打印这行乘法及结论。
 - `default_pool_size` MUST 按**实测峰期活跃后端数**给（该案实测 2.3 个，原配 100，过量 40 倍），
   MUST NOT 照 `max_client_conn` 拍。session 模式下应用空闲连接也占位，所以池大小下限是
   「所有走这个池的应用实例 `maxOpen` 之和」——**应用侧连接池上限与 PgBouncer 池大小 MUST 一起定**。
@@ -408,7 +408,7 @@ WAL 与数据同盘在这个量级没问题（分盘是万级 TPS 的事）；**
 
 #### 桶 1：装机脚本直接写死
 
-**PostgreSQL**（✅ = dev 装机已实现，可直接抽 `shared/` 给 prod 复用）：
+**PostgreSQL**（✅ = dev 装机已实现，可直接抽 `pg-ops-shared/` 给 prod 复用）：
 
 | 参数 | 值 | 现状 | 为什么 |
 |---|---|---|---|
@@ -522,11 +522,11 @@ autovacuum 说明：持续追加、按月切分的分区表死元组少，默认
 
 1. **端口语义 MUST NOT 写死数字。** 现网既有机是 6432 session / 7432 transaction，dev 正相反
    （历史决定）。systemd 单元名用 `pgbouncer-<mode>`，端口全从 env 来，交接文档按实际 ini 生成。
-   抽 `shared/` 时以「从 env 取端口」的写法为准，不要沿用 dev 装机里端口与模式配对固定的手写单元。
+   抽 `pg-ops-shared/` 时以「从 env 取端口」的写法为准，不要沿用 dev 装机里端口与模式配对固定的手写单元。
 2. **auth_query 用 dev 那个函数。** 既有机的 `pgbouncer_auth` 直读 `pg_shadow`，是超级用户级别；
-   dev 的 `pgbouncer.get_auth`（SECURITY DEFINER、排除 `rolsuper`）更对，放 `shared/` 两边共用。
+   dev 的 `pgbouncer.get_auth`（SECURITY DEFINER、排除 `rolsuper`）更对，放 `pg-ops-shared/` 两边共用。
 3. **装机后自检 MUST 含「用了池 vs 装了池」两条**（§5.3 的验收方法，从 SHOULD 升为 MUST）。
-   自检脚本与 `shared/diag/` 一起装到 `/opt/pg-ops/bin/diag/`，交接文档「运维要点」引用；
+   自检脚本与 `pg-ops-shared/diag/` 一起装到 `/opt/pg-ops/bin/diag/`，交接文档「运维要点」引用；
    **重启 / reload / stop 类操作前 MUST 先跑一条快照命令留证据。**
 4. **交接文档加「应用侧连接池契约」**（通用版，不带任何框架键名）：池上限必设、idle 与 open 相等、
    lifetime 带单位、连接串带 `application_name=<服务名>`（多实例带实例名）、lib/pq 类驱动走
@@ -555,7 +555,7 @@ autovacuum 说明：持续追加、按月切分的分区表死元组少，默认
 **已有校准值**（来自现网实测，可作为量级参照）：直连期峰期 **463 连接/秒**、单次建连成本 **10.2 ms**
 （8000+ 张表）、单后端私有内存 **100~130 MB**、整改后每实例 4 条常驻、30 分钟一换、实测峰期活跃后端 **2.3**。
 
-> 这些校准值会随时间贬值——机器、库、负载都在变。**采集它们的是 `shared/diag/`，把采集资产化的是
+> 这些校准值会随时间贬值——机器、库、负载都在变。**采集它们的是 `pg-ops-shared/diag/`，把采集资产化的是
 > `pg-tune`**（§4.3 第 2 条），所以「越早越值钱」指向的是 `pg-tune` 早做，不是 `pg-sizing` 早做。
 
 ### 6.3 待核（机器上一跑就知道，但需要人上生产机）

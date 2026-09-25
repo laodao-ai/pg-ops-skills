@@ -19,7 +19,7 @@ database of its own.
 
 The `.pg-ops/` seam (owner-level credentials). The model never reads this directory directly;
 server-rendered scripts write handover docs there, and a human retrieves file contents via
-`shared/pgops-fetch.sh` rather than having them printed to model stdout (see ADR-0002).
+`pg-ops-shared/pgops-fetch.sh` rather than having them printed to model stdout (see ADR-0002).
 Production-side scripts are dump/read-only only — never a write path into production — and are
 copied to the production host as a self-contained bundle (script + a separate env template the
 human fills in on the production host itself); the model never reads a production env file

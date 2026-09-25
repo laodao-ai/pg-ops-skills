@@ -76,11 +76,12 @@ flowchart TD
 ```bash
 # 首次：运行 checkout 是真 clone，不软链到开发仓
 git clone https://github.com/laodao-ai/pg-ops-skills.git ~/.skills/pg-ops-skills
-bash ~/.skills/pg-ops-skills/setup.sh          # 幂等；Unix symlink，Windows 合并拷贝
+bash ~/.skills/pg-ops-skills/setup.sh          # 幂等；Unix symlink，Windows 独占拷贝
 ```
 
-`setup.sh` 把 4 个 skill + `shared/` symlink 到 `~/.claude/skills/` 与 `~/.codex/skills/`，
-任何 PG 项目全局可用。
+`setup.sh` 把 4 个 skill 安装到 `~/.claude/skills/` 与 `~/.codex/skills/`，任何 PG 项目全局可用。
+Unix 下 4 个 skill 都是软链，`pg-ops-shared/` 留在仓内不装宿主，脚本经软链的物理路径解回仓内引用；
+Windows 下 4 个 skill 与 `pg-ops-shared/` 都独占拷贝到宿主（非自属拒装，见 ADR-0003）。
 
 之后升级说「升级 pg-ops」即可（`/pg-ops-upgrade`）：`git pull --ff-only` → `setup.sh` → 显示版本与最近 5 条变更。
 退出码 `0` 成功 / `1` pull 层失败 / `2` setup 失败，每个失败分支都给 problem/cause/fix 三件套。

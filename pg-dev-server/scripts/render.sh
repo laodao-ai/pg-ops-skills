@@ -5,7 +5,7 @@ set -euo pipefail
 umask 077   # 产物含口令，写入期间即 700（收尾的 chmod 700 只是补收尾，不补窗口期）
 ENV_FILE="${1:?用法: render.sh <env 文件> <输出路径>}"
 OUT="${2:?用法: render.sh <env 文件> <输出路径>}"
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"   # -P 解析软链，skills 是软链装的（setup.sh），逻辑路径下 ../../shared 不可达
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"   # -P 解析软链，skills 是软链装的（setup.sh），逻辑路径下 ../../pg-ops-shared 不可达
 KIND="${3:-install}"
 case "${KIND}" in
     install) BODY="${HERE}/install-ubuntu.sh" ;;
@@ -13,11 +13,11 @@ case "${KIND}" in
     *) echo "problem: 第三个参数只能是 install 或 harden（当前: ${KIND}）" >&2; exit 1 ;;
 esac
 TPL="${HERE}/../templates/handover.md"
-DIAG_DIR="${HERE}/../../shared/diag"
+DIAG_DIR="${HERE}/../../pg-ops-shared/diag"
 [[ -r "${ENV_FILE}" ]] || { echo "problem: 读不到 ${ENV_FILE}" >&2; exit 1; }
 [[ -d "${DIAG_DIR}" ]] || {
     echo "problem: 找不到 ${DIAG_DIR}" >&2
-    echo "cause: 运行 checkout 不完整（Windows 未拷 shared/）或目录被删" >&2
+    echo "cause: 运行 checkout 不完整（Windows 未拷 pg-ops-shared/）或目录被删" >&2
     echo "fix: 重跑 setup.sh 或检查运行 checkout" >&2
     exit 1
 }

@@ -102,7 +102,7 @@ ssh -t <host> 'sudo bash /tmp/install-<host>.sh; rm -f /tmp/install-<host>.sh'
 若消费仓已用 `pgops-guard.sh` 落了 `settings.json` 的 `Read(./.pg-ops/**)` deny，`scp .pg-ops/build/...` 这条命令的源参数
 **可能**被一并拦下（Claude Code 官方文档未明确覆盖范围）——被拦即降级为「只打印给人跑」，MUST NOT 另造第四个工具绕过 deny。
 
-脚本自身做的事（供解释输出）：守卫（`PG_OPS_ROLE=dev`、Ubuntu、root）→ 自装到 `/opt/pg-ops/bin` + 写 `README.md` → 解内嵌诊断脚本包到 `/opt/pg-ops/bin/diag/`（渲染版；直接版回退拷贝仓内 `shared/diag/`）→ swap → PGDG 源（发行版自带对应大版本则跳过）
+脚本自身做的事（供解释输出）：守卫（`PG_OPS_ROLE=dev`、Ubuntu、root）→ 自装到 `/opt/pg-ops/bin` + 写 `README.md` → 解内嵌诊断脚本包到 `/opt/pg-ops/bin/diag/`（渲染版；直接版回退拷贝仓内 `pg-ops-shared/diag/`）→ swap → PGDG 源（发行版自带对应大版本则跳过）
 → 数据盘（先告诉 postgresql-common 新集群放 `DATA_ROOT`，再装包；已有集群在别处只警告不迁移）→ 装三个包 → PG 回环 + scram + `shared_buffers` + 审计日志（conf.d；配置有变才 restart，重跑不打断连接）
 → 超级用户 `postgres` 网络口令（首次生成存 `/opt/pg-ops/postgres.pass`、之后沿用；DB 工具经隧道连 5432 看 / 管全部库用，PgBouncer 拒绝超级用户）→ PgBouncer 认证角色 + `auth_query`
 函数 → PgBouncer 两实例（transaction 池 `PGB_PORT`、session 池 `PGB_SESSION_PORT`，第二实例是脚本写的 systemd 单元 `pgbouncer-session`）→ Redis 回环 + requirepass + maxmemory + 淘汰策略（`REDIS_MAXMEMORY_POLICY`，值域校验早失败）→ 探活（任一失败即退出，含 postgres 网络口令登录）→ 写服务器交接文档 `/opt/pg-ops/handover.md` → 打印隧道命令。

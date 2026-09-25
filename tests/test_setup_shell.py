@@ -175,7 +175,8 @@ class TestWindowsUnmarkedDirectoryFailsLoud:
 class TestWindowsOwnCopyRecopied:
     """⑥ Windows 自属拷贝（带 marker）重跑 ⇒ rm -rf 整份重拷，陈旧文件消失、marker 刷新。
 
-    `shared/` 走的是不同分支（合并拷贝，非整份替换）——单独在用例 ⑦ 覆盖。
+    旧 `shared/`（他仓残留）不再合并拷贝，原样不动——单独在用例 ⑦
+    （`TestForeignLegacySharedUntouched`）覆盖。
     """
 
     def test_marked_copy_is_recopied_fresh(self, tmp_path: Path):
@@ -207,12 +208,69 @@ class TestWindowsOwnCopyRecopied:
             assert (copy_dir / "SKILL.md").exists()
 
 
-class TestWindowsSharedMergeCopied:
-    """⑦ Windows `shared/` 合并拷贝 —— 与 skill 目录的整份替换不同：`<dest>/shared` 是
-    所有 skill 套件共用的落点，别的套件已拷入的文件必须原样保留，本仓的文件只补 / 覆盖。
+class TestWindowsFreshInstallPgOpsShared:
+    """3.2 Windows 全新安装：`pg-ops-shared/` 与四个 skill 一起独占安装（不再是合并拷贝），
+    且经安装副本真跑 `render.sh` 与一个 shim，证明 `../../pg-ops-shared` 在拷贝布局下真可达。
     """
 
-    def test_existing_foreign_file_in_shared_survives_merge_copy(self, tmp_path: Path):
+    def test_fresh_install_has_pg_ops_shared_and_no_shared(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+
+        for host in HOSTS:
+            dest = home / host
+            shared_dir = dest / "pg-ops-shared"
+            assert shared_dir.is_dir()
+            assert (shared_dir / MARKER).exists()
+            assert (shared_dir / "pgops-env.sh").exists()
+            assert (shared_dir / "pgops-fetch.sh").exists()
+            assert (shared_dir / "pgops-guard.sh").exists()
+            assert (shared_dir / "diag").is_dir()
+            assert not (dest / "shared").exists()
+
+    def test_installed_copy_render_and_shim_reach_pg_ops_shared(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+
+        dest = home / HOSTS[0]
+        render_sh = dest / "pg-dev-server" / "scripts" / "render.sh"
+        env_example = REPO_ROOT / "pg-dev-server" / "pg-dev-server.env.example"
+        out = tmp_path / "rendered.sh"
+        render_result = subprocess.run(
+            ["bash", str(render_sh), str(env_example), str(out)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert render_result.returncode == 0, render_result.stderr
+        assert "PG_OPS_DIAG_TGZ_B64" in out.read_text()
+
+        show_target = tmp_path / "show-me.env"
+        show_target.write_text("FOO=bar\n")
+        shim = dest / "pg-dev-init" / "scripts" / "pgops-env.sh"
+        shim_result = subprocess.run(
+            ["bash", str(shim), "show", str(show_target)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert shim_result.returncode == 0, shim_result.stderr
+
+
+class TestForeignLegacySharedUntouched:
+    """3.3（改写用例⑦）：宿主已有他仓 `shared/`（含他仓文件与他仓标记，无本仓标记）——本仓
+    不再合并拷贝，`shared/` 原样不动，本仓的文件只出现在独占的 `pg-ops-shared/`。
+    """
+
+    def test_foreign_shared_untouched_and_our_files_go_to_pg_ops_shared(self, tmp_path: Path):
         home = tmp_path / "home"
         home.mkdir()
         extra_path = _fake_windows_uname(tmp_path)
@@ -222,19 +280,236 @@ class TestWindowsSharedMergeCopied:
             dest.mkdir(parents=True)
             shared_dir = dest / "shared"
             shared_dir.mkdir()
-            # 模拟另一套 skill 的 setup.sh 先装过、往共用 shared/ 里拷了自己的脚本。
             (shared_dir / "other-suite-script.sh").write_text("# another suite's script\n")
+            (shared_dir / ".other-suite").write_text("marker\n")
 
         result = _run_setup(home, extra_path=extra_path, stdin_data="")
         assert result.returncode == 0, result.stderr
 
         for host in HOSTS:
-            shared_dir = home / host / "shared"
-            assert shared_dir.is_dir()
-            # 别人已拷入的文件原样保留（合并拷贝，不是整份替换）。
+            dest = home / host
+            shared_dir = dest / "shared"
+            assert sorted(p.name for p in shared_dir.iterdir()) == [
+                ".other-suite",
+                "other-suite-script.sh",
+            ]
             assert (shared_dir / "other-suite-script.sh").read_text() == "# another suite's script\n"
-            # 本仓的 shared/ 脚本也被拷了进来。
+            assert not (shared_dir / MARKER).exists()
+            assert (dest / "pg-ops-shared" / "pgops-env.sh").exists()
+
+
+class TestOwnPgOpsSharedReplaced:
+    """3.4 自属旧 `pg-ops-shared/`（旧标记 + 一个仓内已不存在的 `stale.sh`）⇒ 整份替换：
+    `stale.sh` 消失，标记刷新到当前 HEAD sha。
+    """
+
+    def test_own_pg_ops_shared_recopied_fresh(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+
+        for host in HOSTS:
+            dest = home / host
+            dest.mkdir(parents=True)
+            shared_dir = dest / "pg-ops-shared"
+            shared_dir.mkdir()
+            (shared_dir / MARKER).write_text("deadbeef\n")
+            (shared_dir / "stale.sh").write_text("# no longer in the repo\n")
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+
+        for host in HOSTS:
+            shared_dir = home / host / "pg-ops-shared"
+            assert not (shared_dir / "stale.sh").exists()
+            assert (shared_dir / MARKER).read_text().strip() != "deadbeef"
             assert (shared_dir / "pgops-env.sh").exists()
-            assert (shared_dir / "pgops-fetch.sh").exists()
-            assert (shared_dir / "pgops-guard.sh").exists()
             assert (shared_dir / "diag").is_dir()
+
+
+class TestForeignPgOpsSharedRefused:
+    """3.5 非自属 `pg-ops-shared/`（无标记 + `not-ours.txt`）⇒ 退出非 0、stderr 三行、
+    目录不变；且因为 `pg-ops-shared` 先于四个 skill 安装，本宿主四个自属 skill 旧拷贝逐字节不变。
+    """
+
+    def test_foreign_pg_ops_shared_refused_and_skills_untouched(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        shared_dir = dest / "pg-ops-shared"
+        shared_dir.mkdir()
+        (shared_dir / "not-ours.txt").write_text("not managed by pg-ops\n")
+
+        skill_snapshots = {}
+        for skill in NEW_SKILLS:
+            copy_dir = dest / skill
+            copy_dir.mkdir()
+            (copy_dir / MARKER).write_text("deadbeef\n")
+            (copy_dir / "stale-file.txt").write_text("from the old copy\n")
+            skill_snapshots[skill] = {
+                MARKER: (copy_dir / MARKER).read_text(),
+                "stale-file.txt": (copy_dir / "stale-file.txt").read_text(),
+            }
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+
+        assert result.returncode != 0
+        fail_lines = [line for line in result.stderr.splitlines() if "[FAIL]" in line]
+        assert len(fail_lines) == 3, f"expected exactly 3 [FAIL] lines, got: {fail_lines}"
+        assert "problem:" in result.stderr
+        assert "cause:" in result.stderr
+        assert "fix:" in result.stderr
+
+        assert (shared_dir / "not-ours.txt").read_text() == "not managed by pg-ops\n"
+        assert not (shared_dir / MARKER).exists()
+
+        for skill in NEW_SKILLS:
+            copy_dir = dest / skill
+            assert (copy_dir / MARKER).read_text() == skill_snapshots[skill][MARKER]
+            assert (copy_dir / "stale-file.txt").read_text() == skill_snapshots[skill]["stale-file.txt"]
+
+
+class TestLegacySharedResidualHint:
+    """3.6 旧 `shared/` 残留提示：含本仓旧标记 `.pg-ops` ⇒ stdout 一行提示（含路径 / 「旧安装
+    残留」/「确认其中无他仓仍在使用的文件后可手动删除」），文件不变；不含标记 ⇒ 不提示。
+    """
+
+    def test_hint_present_when_marked(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        shared_dir = dest / "shared"
+        shared_dir.mkdir()
+        (shared_dir / MARKER).write_text("oldsha\n")
+        (shared_dir / "pgops-env.sh").write_text("# old copy\n")
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+
+        shared_path_str = str(shared_dir)
+        assert shared_path_str in result.stdout
+        assert "旧安装残留" in result.stdout
+        assert "确认其中无他仓仍在使用的文件后可手动删除" in result.stdout
+        assert (shared_dir / MARKER).read_text() == "oldsha\n"
+        assert (shared_dir / "pgops-env.sh").read_text() == "# old copy\n"
+
+    def test_hint_absent_when_unmarked(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        shared_dir = dest / "shared"
+        shared_dir.mkdir()
+        (shared_dir / "other-suite-script.sh").write_text("# another suite's script\n")
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+        assert "旧安装残留" not in result.stdout
+
+
+class TestUnixNoPgOpsShared:
+    """3.7 Unix 全新安装后两宿主下均不出现 `pg-ops-shared` 与 `shared`。"""
+
+    def test_unix_fresh_install_has_neither_dir(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+
+        result = _run_setup(home)
+        assert result.returncode == 0, result.stderr
+
+        for host in HOSTS:
+            dest = home / host
+            assert not (dest / "pg-ops-shared").exists()
+            assert not (dest / "shared").exists()
+
+
+class TestWindowsSymlinkTargetRefused:
+    """3.9 [spec-review-amendment] Windows 拷贝模式对任何软链目标一律拒装（不跟随判所有权）：
+    `pg-ops-shared` 为「指向无标记目录的有效软链」「指向带标记目录的有效软链」「悬空软链」三种
+    形态，以及一个 skill（`pg-dev-init`）为「指向带标记目录的软链」，均退出非 0、stderr 三行
+    含「是软链」、`readlink` 与被指向目录内容不变。
+    """
+
+    def _assert_refused_and_untouched(self, result, link_path: Path, expected_target: str, target_dir: Path | None, expected_files: dict[str, str]):
+        assert result.returncode != 0
+        assert "是软链" in result.stderr
+        fail_lines = [line for line in result.stderr.splitlines() if "[FAIL]" in line]
+        assert len(fail_lines) == 3, f"expected exactly 3 [FAIL] lines, got: {fail_lines}"
+        assert "problem:" in result.stderr
+        assert "cause:" in result.stderr
+        assert "fix:" in result.stderr
+        assert link_path.is_symlink()
+        assert os.readlink(link_path) == expected_target
+        if target_dir is not None:
+            for name, content in expected_files.items():
+                assert (target_dir / name).read_text() == content
+
+    def test_symlink_to_unmarked_dir(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+        target_real = tmp_path / "unmarked-target"
+        target_real.mkdir()
+        (target_real / "foo.txt").write_text("bar\n")
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        (dest / "pg-ops-shared").symlink_to(target_real)
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        self._assert_refused_and_untouched(
+            result, dest / "pg-ops-shared", str(target_real), target_real, {"foo.txt": "bar\n"}
+        )
+
+    def test_symlink_to_marked_dir(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+        target_real = tmp_path / "marked-target"
+        target_real.mkdir()
+        (target_real / MARKER).write_text("deadbeef\n")
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        (dest / "pg-ops-shared").symlink_to(target_real)
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        self._assert_refused_and_untouched(
+            result, dest / "pg-ops-shared", str(target_real), target_real, {MARKER: "deadbeef\n"}
+        )
+
+    def test_dangling_symlink(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+        nonexistent = tmp_path / "does-not-exist"
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        (dest / "pg-ops-shared").symlink_to(nonexistent)
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        self._assert_refused_and_untouched(
+            result, dest / "pg-ops-shared", str(nonexistent), None, {}
+        )
+
+    def test_skill_target_symlink_to_marked_dir(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+        target_real = tmp_path / "marked-skill-target"
+        target_real.mkdir()
+        (target_real / MARKER).write_text("deadbeef\n")
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        (dest / "pg-dev-init").symlink_to(target_real)
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        self._assert_refused_and_untouched(
+            result, dest / "pg-dev-init", str(target_real), target_real, {MARKER: "deadbeef\n"}
+        )
