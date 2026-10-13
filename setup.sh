@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # pg-ops setup — install skills into BOTH global hosts:
-#   - Claude  ~/.claude/skills/
-#   - Codex   ~/.codex/skills/
+#   - Claude           ~/.claude/skills/
+#   - Codex / Cursor   ~/.agents/skills/
 #
 # Idempotent. Unix: symlink (git pull auto-reflects). Windows(Git Bash): copy +
 # marker — MSYS `ln -s` silently degrades to a copy that `git pull` won't
@@ -10,6 +10,9 @@
 # Windows 下仓内 `pg-ops-shared/`（诊断脚本 + 口令工具的唯一落点）走与四个 skill 目录相同的
 # 独占安装语义（自属整份替换 / 非自属拒装），每个宿主先装它再装四个 skill；Unix 不装它，
 # 软链天然经物理路径解回仓内。
+#
+# 旧宿主 `~/.codex/skills/`：新落点装妥本仓自属项后，清理其中指向本仓 / 带 `.pg-ops` 的旧项；
+# 第三方占用不动。
 #
 # Conflict policy:
 #   - target already a symlink pointing at the same path we'd install -> success,
@@ -23,7 +26,9 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIRS=("$HOME/.claude/skills" "$HOME/.codex/skills")
+TARGET_DIRS=("$HOME/.claude/skills" "$HOME/.agents/skills")
+# 曾装进旧 Codex 宿主、迁移期需要回收的名字（含 Windows 独占的 pg-ops-shared）。
+LEGACY_CODEX_NAMES=(pg-dev-server pg-dev-init pg-sync pg-ops-upgrade pg-ops-shared)
 
 # 平台探测：Git Bash / MSYS / Cygwin 一律走 Windows 拷贝分支。
 IS_WINDOWS=0
@@ -94,6 +99,40 @@ install_skill() {
     pass "${skill_name} @ ${dest_dir} — 已安装软链 → ${src}"
 }
 
+# 先确认 ~/.agents/skills 已有本仓版本，再清理 ~/.codex/skills 自属旧项；同名第三方不动。
+cleanup_legacy_codex_skills() {
+    local old="$HOME/.codex/skills"
+    local new="$HOME/.agents/skills"
+    local name entry link_dest
+
+    [[ -d "${old}" ]] || return 0
+
+    for name in "${LEGACY_CODEX_NAMES[@]}"; do
+        entry="${old}/${name}"
+        [[ -e "${entry}" || -L "${entry}" ]] || continue
+
+        if [[ -L "${new}/${name}" ]]; then
+            [[ "$(readlink "${new}/${name}")" == "${REPO_DIR}/${name}" ]] || continue
+        elif is_our_copy "${new}/${name}"; then
+            :
+        else
+            continue
+        fi
+
+        if [[ -L "${entry}" ]]; then
+            link_dest="$(readlink "${entry}")"
+            [[ "${link_dest}" == "${REPO_DIR}/${name}" ]] || continue
+        elif is_our_copy "${entry}"; then
+            :
+        else
+            continue
+        fi
+
+        rm -rf "${entry}"
+        info "${name} @ ${old} — 已迁移到 ${new}"
+    done
+}
+
 info "=== pg-ops setup ==="
 for dest in "${TARGET_DIRS[@]}"; do
     if [[ "${IS_WINDOWS}" -eq 1 ]]; then
@@ -111,6 +150,7 @@ for dest in "${TARGET_DIRS[@]}"; do
         info "${dest}/shared 是旧安装残留，确认其中无他仓仍在使用的文件后可手动删除"
     fi
 done
+cleanup_legacy_codex_skills
 if [[ "${IS_WINDOWS}" -eq 1 ]]; then
     info "mode: copy (Windows) —— 更新请重跑本脚本（git pull 不会自动反映）"
 else

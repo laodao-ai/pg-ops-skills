@@ -3,7 +3,7 @@
 独立、全局安装的 **PostgreSQL 运维引擎仓**：开发数据库服务器装机、生产库备份与恢复、生产→开发同步、
 监控与告警、最小权限角色与审计。从一个 Go 服务的生产运维实践中抽出（2026-09-04）。
 
-`setup.sh` 把各 skill symlink 到 `~/.claude/skills/` 与 `~/.codex/skills/`，任何 PG 项目全局可用。
+`setup.sh` 把各 skill symlink 到 `~/.claude/skills/` 与 `~/.agents/skills/`，任何 PG 项目全局可用。
 
 **边界判据（唯一一条）**：不知道消费项目存在的东西才在这里。凡是引用某个项目的二进制、
 schema 名、CLI 子命令、制品布局的，留在那个项目的 `hack/`，通过薄包装调用本仓。

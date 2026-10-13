@@ -1,7 +1,7 @@
 # 各仓安装到带仓名前缀的独占目录，不再共用 `shared/`
 
 拆分后的 `pg-ops` 与 `db-llm` 两仓各自把工具脚本装到同一批宿主 skills 目录（`~/.claude/skills/`、
-`~/.codex/skills/`）。Windows（Git Bash / MSYS / Cygwin）下 symlink 会静默退化成不随 `git pull`
+`~/.agents/skills/`；旧落点 `~/.codex/skills/` 由各仓 setup 在新落点装妥后清理自属项）。Windows（Git Bash / MSYS / Cygwin）下 symlink 会静默退化成不随 `git pull`
 更新的拷贝，因此 Windows 分支一律走拷贝；两仓的工具脚本原先都落在同名的 `shared/`，Windows 拷贝
 模式下只能靠「合并拷贝」（逐文件覆盖同名、不整份替换）避免互相清空对方文件，代价是所有权判断散在
 文件名层面、任何一方新增文件都可能与另一方撞名。本 change 把仓内目录从 `shared/` 改名为

@@ -79,7 +79,7 @@ git clone https://github.com/laodao-ai/pg-ops-skills.git ~/.skills/pg-ops-skills
 bash ~/.skills/pg-ops-skills/setup.sh          # 幂等；Unix symlink，Windows 独占拷贝
 ```
 
-`setup.sh` 把 4 个 skill 安装到 `~/.claude/skills/` 与 `~/.codex/skills/`，任何 PG 项目全局可用。
+`setup.sh` 把 4 个 skill 安装到 `~/.claude/skills/` 与 `~/.agents/skills/`，任何 PG 项目全局可用。
 Unix 下 4 个 skill 都是软链，`pg-ops-shared/` 留在仓内不装宿主，脚本经软链的物理路径解回仓内引用；
 Windows 下 4 个 skill 与 `pg-ops-shared/` 都独占拷贝到宿主（非自属拒装，见 ADR-0003）。
 

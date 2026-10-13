@@ -7,9 +7,9 @@ copy carrying its own `.pg-ops` marker. Anything else is a fail-loud with a
 problem/cause/fix triple; it MUST NOT overwrite or recursively delete a
 directory it does not own.
 
-No real ~/.claude or ~/.codex touched: every test runs setup.sh with HOME
-pointed at a throwaway tmp_path (TARGET_DIRS is derived from $HOME, no
-override variable). The Windows branch is exercised by shadowing `uname` on
+No real ~/.claude or ~/.agents or ~/.codex touched: every test runs setup.sh
+with HOME pointed at a throwaway tmp_path (TARGET_DIRS is derived from $HOME,
+no override variable). The Windows branch is exercised by shadowing `uname` on
 PATH with a fake binary that reports a Windows-shaped uname -s string
 (MINGW64_NT-...), the same mocking pattern this repo uses elsewhere.
 """
@@ -32,7 +32,8 @@ NEW_SKILLS = [
     "pg-ops-upgrade",
 ]
 MARKER = ".pg-ops"  # 与 setup.sh 的 MARKER 常量一致（Windows 拷贝的所有权标记）
-HOSTS = [".claude/skills", ".codex/skills"]
+HOSTS = [".claude/skills", ".agents/skills"]
+LEGACY_CODEX = ".codex/skills"
 
 
 def _write_exec(path: Path, body: str) -> Path:
@@ -513,3 +514,63 @@ class TestWindowsSymlinkTargetRefused:
         self._assert_refused_and_untouched(
             result, dest / "pg-dev-init", str(target_real), target_real, {MARKER: "deadbeef\n"}
         )
+
+
+class TestLegacyCodexMigrated:
+    """旧 ~/.codex/skills 自属项：新落点 ~/.agents/skills 装妥后清理；第三方不动。"""
+
+    def test_unix_own_codex_symlinks_removed_after_agents_install(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        legacy = home / LEGACY_CODEX
+        legacy.mkdir(parents=True)
+        for skill in NEW_SKILLS:
+            (legacy / skill).symlink_to(REPO_ROOT / skill)
+        foreign = legacy / "someone-elses-skill"
+        foreign.symlink_to(tmp_path / "elsewhere")
+
+        result = _run_setup(home)
+        assert result.returncode == 0, result.stderr
+        assert "已迁移到" in result.stdout
+
+        agents = home / ".agents/skills"
+        for skill in NEW_SKILLS:
+            assert (agents / skill).is_symlink()
+            assert os.readlink(agents / skill) == str(REPO_ROOT / skill)
+            assert not (legacy / skill).exists()
+            assert not (legacy / skill).is_symlink()
+        assert foreign.is_symlink()
+
+    def test_foreign_codex_symlink_untouched(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        legacy = home / LEGACY_CODEX
+        legacy.mkdir(parents=True)
+        other = tmp_path / "other-repo" / "pg-dev-server"
+        other.mkdir(parents=True)
+        (legacy / "pg-dev-server").symlink_to(other)
+
+        result = _run_setup(home)
+        assert result.returncode == 0, result.stderr
+        assert (legacy / "pg-dev-server").is_symlink()
+        assert os.readlink(legacy / "pg-dev-server") == str(other)
+
+    def test_windows_own_codex_copies_removed_after_agents_install(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+        legacy = home / LEGACY_CODEX
+        legacy.mkdir(parents=True)
+        for skill in NEW_SKILLS + ["pg-ops-shared"]:
+            copy_dir = legacy / skill
+            copy_dir.mkdir()
+            (copy_dir / MARKER).write_text("oldsha\n")
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+        assert "已迁移到" in result.stdout
+
+        agents = home / ".agents/skills"
+        for skill in NEW_SKILLS + ["pg-ops-shared"]:
+            assert (agents / skill / MARKER).exists()
+            assert not (legacy / skill).exists()

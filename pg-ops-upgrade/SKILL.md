@@ -22,7 +22,7 @@ pull 失败、detached HEAD）/ 2 setup.sh 失败，每个失败分支输出 pro
    - 非 ff（本地被改过）→ 停下报告，不强推；提示"运行 checkout 只读，改动应发生在开发 checkout"。
    - detached HEAD → 提示先 `git -C ~/.skills/pg-ops-skills checkout main`。
 3. **setup**：`bash ~/.skills/pg-ops-skills/setup.sh`
-   - 刷 skills 软链到 `~/.claude/skills/` 和 `~/.codex/skills/`。
+   - 刷 skills 软链到 `~/.claude/skills/` 和 `~/.agents/skills/`（并清理 `~/.codex/skills/` 本仓自属旧项）。
 4. **展示**：`git -C ~/.skills/pg-ops-skills describe --tags --always --dirty` + `git -C ~/.skills/pg-ops-skills log --oneline -5`，向用户汇报版本与最新变更。
 5. **提示**：Unix 软链模式下 git pull 自动反映最新；Windows 拷贝模式需重跑 setup.sh。
 

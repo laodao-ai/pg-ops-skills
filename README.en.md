@@ -36,6 +36,6 @@ bash ~/.skills/pg-ops-skills/setup.sh                                       # id
 ```
 
 This installs the 3 skills plus the `pg-ops-upgrade` upgrade skill into both `~/.claude/skills/`
-and `~/.codex/skills/`. Afterwards,
+and `~/.agents/skills/`. Afterwards,
 upgrade with `/pg-ops-upgrade` (pull → setup → show version). Development happens in a separate dev
 checkout; the run checkout is pull-only, never edited in place.
