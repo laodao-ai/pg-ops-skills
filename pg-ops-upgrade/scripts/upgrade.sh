@@ -29,6 +29,18 @@ fail3() {
     fail "fix: $3"
 }
 
+# Refuse to run with cwd inside a skills install root — Windows native processes
+# hold a directory handle on their cwd, so setup cannot replace that skill.
+case "$PWD/" in
+    "$HOME/.claude/skills/"*|"$HOME/.codex/skills/"*|"$HOME/.agents/skills/"*)
+        fail3 \
+            "当前工作目录在 skills 安装目录内" \
+            "Windows 上原生进程的工作目录会锁住该目录，setup 无法替换" \
+            "先 cd 到其他目录，再用绝对路径重跑：bash ~/.claude/skills/pg-ops-upgrade/scripts/upgrade.sh"
+        exit 1
+        ;;
+esac
+
 # [1] CHECKOUT_DIR must exist.
 if [[ ! -d "$CHECKOUT_DIR" ]]; then
     fail3 \

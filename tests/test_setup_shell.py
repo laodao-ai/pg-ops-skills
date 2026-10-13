@@ -153,8 +153,8 @@ class TestForeignRealDirectoryFailLoud:
         assert (foreign_dir / "some-unrelated-file.txt").exists()
 
 
-class TestWindowsUnmarkedDirectoryFailsLoud:
-    """⑤ Windows 分支：没有本脚本 marker 的同名目录 ⇒ fail-loud，不 rm -rf。"""
+class TestWindowsUnmarkedDirectorySkipped:
+    """⑤ Windows 分支：没有本脚本 marker 的同名目录 ⇒ SKIP 该项、退出 0、不覆盖。"""
 
     def test_directory_without_marker_is_not_overwritten(self, tmp_path: Path):
         home = tmp_path / "home"
@@ -168,9 +168,13 @@ class TestWindowsUnmarkedDirectoryFailsLoud:
 
         result = _run_setup(home, extra_path=extra_path, stdin_data="")
 
-        assert result.returncode != 0
-        assert (foreign_dir / "not-ours.txt").exists()
+        assert result.returncode == 0, result.stderr
+        assert "[SKIP]" in result.stdout
+        assert "非本脚本管理" in result.stdout
+        assert (foreign_dir / "not-ours.txt").read_text() == "someone else's copy\n"
         assert not (foreign_dir / MARKER).exists()
+        # 其它 skill 仍继续安装
+        assert (dest / "pg-dev-init" / MARKER).exists()
 
 
 class TestWindowsOwnCopyRecopied:
@@ -328,12 +332,10 @@ class TestOwnPgOpsSharedReplaced:
             assert (shared_dir / "diag").is_dir()
 
 
-class TestForeignPgOpsSharedRefused:
-    """3.5 非自属 `pg-ops-shared/`（无标记 + `not-ours.txt`）⇒ 退出非 0、stderr 三行、
-    目录不变；且因为 `pg-ops-shared` 先于四个 skill 安装，本宿主四个自属 skill 旧拷贝逐字节不变。
-    """
+class TestForeignPgOpsSharedSkipped:
+    """3.5 非自属 `pg-ops-shared/` ⇒ SKIP 该项、目录不变；同轮其余 skill 仍可事务替换。"""
 
-    def test_foreign_pg_ops_shared_refused_and_skills_untouched(self, tmp_path: Path):
+    def test_foreign_pg_ops_shared_skipped_other_skills_install(self, tmp_path: Path):
         home = tmp_path / "home"
         home.mkdir()
         extra_path = _fake_windows_uname(tmp_path)
@@ -344,33 +346,24 @@ class TestForeignPgOpsSharedRefused:
         shared_dir.mkdir()
         (shared_dir / "not-ours.txt").write_text("not managed by pg-ops\n")
 
-        skill_snapshots = {}
         for skill in NEW_SKILLS:
             copy_dir = dest / skill
             copy_dir.mkdir()
             (copy_dir / MARKER).write_text("deadbeef\n")
             (copy_dir / "stale-file.txt").write_text("from the old copy\n")
-            skill_snapshots[skill] = {
-                MARKER: (copy_dir / MARKER).read_text(),
-                "stale-file.txt": (copy_dir / "stale-file.txt").read_text(),
-            }
 
         result = _run_setup(home, extra_path=extra_path, stdin_data="")
 
-        assert result.returncode != 0
-        fail_lines = [line for line in result.stderr.splitlines() if "[FAIL]" in line]
-        assert len(fail_lines) == 3, f"expected exactly 3 [FAIL] lines, got: {fail_lines}"
-        assert "problem:" in result.stderr
-        assert "cause:" in result.stderr
-        assert "fix:" in result.stderr
-
+        assert result.returncode == 0, result.stderr
+        assert "非本脚本管理" in result.stdout
         assert (shared_dir / "not-ours.txt").read_text() == "not managed by pg-ops\n"
         assert not (shared_dir / MARKER).exists()
 
         for skill in NEW_SKILLS:
             copy_dir = dest / skill
-            assert (copy_dir / MARKER).read_text() == skill_snapshots[skill][MARKER]
-            assert (copy_dir / "stale-file.txt").read_text() == skill_snapshots[skill]["stale-file.txt"]
+            assert (copy_dir / MARKER).read_text().strip() != "deadbeef"
+            assert not (copy_dir / "stale-file.txt").exists()
+            assert (copy_dir / "SKILL.md").exists()
 
 
 class TestLegacySharedResidualHint:
@@ -432,21 +425,15 @@ class TestUnixNoPgOpsShared:
             assert not (dest / "shared").exists()
 
 
-class TestWindowsSymlinkTargetRefused:
-    """3.9 [spec-review-amendment] Windows 拷贝模式对任何软链目标一律拒装（不跟随判所有权）：
-    `pg-ops-shared` 为「指向无标记目录的有效软链」「指向带标记目录的有效软链」「悬空软链」三种
-    形态，以及一个 skill（`pg-dev-init`）为「指向带标记目录的软链」，均退出非 0、stderr 三行
-    含「是软链」、`readlink` 与被指向目录内容不变。
-    """
+class TestWindowsSymlinkTargetSkipped:
+    """3.9 Windows 拷贝模式对任何软链目标一律 SKIP（不跟随判所有权），退出 0，软链原样。"""
 
-    def _assert_refused_and_untouched(self, result, link_path: Path, expected_target: str, target_dir: Path | None, expected_files: dict[str, str]):
-        assert result.returncode != 0
-        assert "是软链" in result.stderr
-        fail_lines = [line for line in result.stderr.splitlines() if "[FAIL]" in line]
-        assert len(fail_lines) == 3, f"expected exactly 3 [FAIL] lines, got: {fail_lines}"
-        assert "problem:" in result.stderr
-        assert "cause:" in result.stderr
-        assert "fix:" in result.stderr
+    def _assert_skipped_and_untouched(
+        self, result, link_path: Path, expected_target: str, target_dir: Path | None, expected_files: dict[str, str]
+    ):
+        assert result.returncode == 0, result.stderr
+        assert "是软链" in result.stdout
+        assert "[SKIP]" in result.stdout
         assert link_path.is_symlink()
         assert os.readlink(link_path) == expected_target
         if target_dir is not None:
@@ -465,7 +452,7 @@ class TestWindowsSymlinkTargetRefused:
         (dest / "pg-ops-shared").symlink_to(target_real)
 
         result = _run_setup(home, extra_path=extra_path, stdin_data="")
-        self._assert_refused_and_untouched(
+        self._assert_skipped_and_untouched(
             result, dest / "pg-ops-shared", str(target_real), target_real, {"foo.txt": "bar\n"}
         )
 
@@ -481,7 +468,7 @@ class TestWindowsSymlinkTargetRefused:
         (dest / "pg-ops-shared").symlink_to(target_real)
 
         result = _run_setup(home, extra_path=extra_path, stdin_data="")
-        self._assert_refused_and_untouched(
+        self._assert_skipped_and_untouched(
             result, dest / "pg-ops-shared", str(target_real), target_real, {MARKER: "deadbeef\n"}
         )
 
@@ -495,7 +482,7 @@ class TestWindowsSymlinkTargetRefused:
         (dest / "pg-ops-shared").symlink_to(nonexistent)
 
         result = _run_setup(home, extra_path=extra_path, stdin_data="")
-        self._assert_refused_and_untouched(
+        self._assert_skipped_and_untouched(
             result, dest / "pg-ops-shared", str(nonexistent), None, {}
         )
 
@@ -511,7 +498,7 @@ class TestWindowsSymlinkTargetRefused:
         (dest / "pg-dev-init").symlink_to(target_real)
 
         result = _run_setup(home, extra_path=extra_path, stdin_data="")
-        self._assert_refused_and_untouched(
+        self._assert_skipped_and_untouched(
             result, dest / "pg-dev-init", str(target_real), target_real, {MARKER: "deadbeef\n"}
         )
 
@@ -574,3 +561,67 @@ class TestLegacyCodexMigrated:
         for skill in NEW_SKILLS + ["pg-ops-shared"]:
             assert (agents / skill / MARKER).exists()
             assert not (legacy / skill).exists()
+
+
+class TestWindowsEmptyDirTakeover:
+    """空目录（事故残留）可接管，重新安装，不报非自属。"""
+
+    def test_empty_dir_is_replaced(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        empty = dest / "pg-dev-server"
+        empty.mkdir()
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+        assert "非本脚本管理" not in result.stdout
+        assert (empty / MARKER).exists()
+        assert (empty / "SKILL.md").exists()
+
+
+class TestWindowsBackupRecover:
+    """目标不存在 + 本仓 owner 的 backup ⇒ 恢复后再正常安装。"""
+
+    def test_orphan_backup_restored_then_replaced(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        extra_path = _fake_windows_uname(tmp_path)
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        tx = dest / ".pg-ops-pg-dev-server.testhash"
+        tx.mkdir()
+        (tx / "owner").write_text("pg-dev-server\n")
+        backup = tx / "backup"
+        backup.mkdir()
+        (backup / MARKER).write_text("oldsha\n")
+        (backup / "stale-file.txt").write_text("from interrupted swap\n")
+        (backup / "SKILL.md").write_text("# stale\n")
+
+        result = _run_setup(home, extra_path=extra_path, stdin_data="")
+        assert result.returncode == 0, result.stderr
+        target = dest / "pg-dev-server"
+        assert (target / MARKER).exists()
+        assert (target / MARKER).read_text().strip() != "oldsha"
+        assert not (target / "stale-file.txt").exists()
+        assert (target / "SKILL.md").exists()
+        assert not tx.exists()
+
+
+class TestUnixEmptyDirTakeover:
+    """Unix 空目录亦可接管（与 Windows 事故残留同一判据）。"""
+
+    def test_empty_dir_becomes_symlink(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        dest = home / HOSTS[0]
+        dest.mkdir(parents=True)
+        empty = dest / "pg-sync"
+        empty.mkdir()
+
+        result = _run_setup(home)
+        assert result.returncode == 0, result.stderr
+        assert empty.is_symlink()
+        assert os.readlink(empty) == str(REPO_ROOT / "pg-sync")

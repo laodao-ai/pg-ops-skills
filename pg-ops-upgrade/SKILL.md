@@ -10,8 +10,16 @@ description: 升级 pg-ops 套件运行 checkout（~/.skills/pg-ops-skills）：
 
 ## 步骤
 
+**用绝对路径运行**（MUST NOT 先 `cd` 进 skill 目录——Windows 上原生进程的工作目录会锁住该目录）：
+
 ```bash
-<skill-dir>/scripts/upgrade.sh
+bash ~/.claude/skills/pg-ops-upgrade/scripts/upgrade.sh
+```
+
+Codex / Cursor 侧若装在 `~/.agents/skills`：
+
+```bash
+bash ~/.agents/skills/pg-ops-upgrade/scripts/upgrade.sh
 ```
 
 脚本封装了以下升级三连，退出码 0 成功 / 1 pull 层失败（含 checkout 不存在、remote 不匹配、

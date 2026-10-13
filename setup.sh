@@ -15,14 +15,13 @@
 # 第三方占用不动。
 #
 # Conflict policy:
-#   - target already a symlink pointing at the same path we'd install -> success,
-#     no-op (idempotent re-run).
-#   - target exists as a real directory, or a symlink pointing elsewhere, or a
-#     regular file -> fail loud with a migration command. MUST NOT overwrite or
-#     recursively delete anything we don't own.
-#   - Windows: any symlink at the target (valid or dangling) is refused outright
-#     — copy mode does not adopt symlinks, ownership is judged by the `.pg-ops`
-#     marker on a real directory only.
+#   - Unix: target already a symlink pointing at the same path we'd install ->
+#     success, no-op. Foreign symlink / non-empty real dir / file -> fail loud.
+#     Empty directory is takeable (Windows accident leftovers).
+#   - Windows: copy via transactional rename (stage → aside → swap). Never
+#     rm -rf the live target first — a locked cwd leaves an unmarked empty dir.
+#     Foreign / symlink / busy target -> SKIP that skill and continue (exit 0).
+#     Empty directory is takeable. Ownership = `.pg-ops` marker on a real dir.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,11 +38,112 @@ MARKER=".pg-ops"                             # Windows 拷贝的所有权标记�
 is_our_copy() {                              # 一份拷贝是不是本脚本装的
     [[ -f "$1/${MARKER}" ]]
 }
+# Empty dir has nothing to lose — takeable (Windows accident leftovers).
+is_empty_dir() {
+    [[ -d "$1" ]] && [[ ! -L "$1" ]] && [[ -z "$(ls -A "$1" 2>/dev/null)" ]]
+}
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 pass() { echo -e "${GREEN}[PASS]${NC} $1"; }
 info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
 fail() { echo -e "${RED}[FAIL]${NC} $1" >&2; }
+warn() { echo -e "${YELLOW}[SKIP]${NC} $1"; }
+
+# Rename when destination path must not already exist as a directory.
+# Prefer GNU `mv -T` (Windows Git Bash); fall back to plain `mv` (BSD/macOS).
+_mv_noslash() {
+    if [[ -z "${_PG_OPS_MV_T:-}" ]]; then
+        local probe
+        probe="$(mktemp -d "${TMPDIR:-/tmp}/pg-ops-mvprobe.XXXXXX")" || return 1
+        if mv -T "$probe" "${probe}.dst" 2>/dev/null; then
+            _PG_OPS_MV_T=1
+            rmdir "${probe}.dst" 2>/dev/null || true
+        else
+            _PG_OPS_MV_T=0
+            rmdir "$probe" 2>/dev/null || true
+        fi
+    fi
+    if [[ "${_PG_OPS_MV_T}" -eq 1 ]]; then
+        mv -T -- "$@"
+    else
+        mv -- "$@"
+    fi
+}
+
+# Windows: recover interrupted transaction (target missing + our backup).
+recover_windows_skill_backup() {  # $1=target $2=skill name
+    local target="$1" name="$2" transaction owner
+    for transaction in "${target%/*}/.pg-ops-${name}."*; do
+        [[ -d "$transaction" && ! -L "$transaction" ]] || continue
+        [[ -f "$transaction/owner" && ! -L "$transaction/owner" ]] || continue
+        IFS= read -r owner < "$transaction/owner" || continue
+        [[ "$owner" == "$name" ]] || continue
+        if [[ -d "$transaction/backup" && ! -L "$transaction/backup" ]]; then
+            [[ -f "$transaction/backup/${MARKER}" ]] || continue
+            if [[ ! -e "$target" && ! -L "$target" ]]; then
+                _mv_noslash "$transaction/backup" "$target" 2>/dev/null || return 1
+            else
+                continue
+            fi
+        else
+            continue
+        fi
+        rm -rf -- "$transaction" 2>/dev/null || return 1
+    done
+}
+
+# Windows: stage → rename-aside → swap. Failures keep the old install; do not abort the run.
+install_windows_skill() {  # $1=src $2=target $3=skill name
+    local source="$1" target="$2" name="$3" transaction sha
+    if [[ -L "$target" ]]; then
+        warn "${name} @ ${target%/*} — 是软链，Windows 拷贝模式不接管（关闭占用后迁移或删软链再重跑）"
+        return 0
+    fi
+    if [[ -e "$target" ]]; then
+        if [[ ! -d "$target" ]]; then
+            warn "${name} @ ${target%/*} — 路径已存在且非目录，未覆盖"
+            return 0
+        fi
+        if ! is_our_copy "$target" && ! is_empty_dir "$target"; then
+            warn "${name} @ ${target%/*} — 非本脚本管理，未覆盖（手动 mv 到 .bak 后重跑）"
+            return 0
+        fi
+    fi
+    if ! recover_windows_skill_backup "$target" "$name"; then
+        warn "${name} @ ${target%/*} — backup 恢复失败，跳过"
+        return 0
+    fi
+    sha="$(git -C "${REPO_DIR}" rev-parse HEAD 2>/dev/null || echo unknown)"
+    transaction="$(mktemp -d "${target%/*}/.pg-ops-${name}.XXXXXX")" || {
+        warn "${name} @ ${target%/*} — staging 创建失败"; return 0
+    }
+    if ! printf '%s\n' "$name" > "$transaction/owner" ||
+       ! mkdir "$transaction/stage" ||
+       ! cp -R "$source/." "$transaction/stage" ||
+       ! printf '%s\n' "$sha" > "$transaction/stage/${MARKER}"; then
+        rm -rf -- "$transaction" || true
+        warn "${name} @ ${target%/*} — staging 失败，旧安装保留"
+        return 0
+    fi
+    if [[ -d "$target" ]] && ! _mv_noslash "$target" "$transaction/backup" 2>/dev/null; then
+        rm -rf -- "$transaction" || true
+        warn "${name} @ ${target%/*} — 目录被占用（关闭工作目录在该目录下的终端/编辑器后重跑），旧安装保留"
+        return 0
+    fi
+    if ! _mv_noslash "$transaction/stage" "$target" 2>/dev/null; then
+        if [[ -d "$transaction/backup" ]]; then
+            if ! _mv_noslash "$transaction/backup" "$target" 2>/dev/null; then
+                warn "${name} @ ${target%/*} — swap/rollback 失败，backup 保留于 $transaction"
+                return 0
+            fi
+        fi
+        rm -rf -- "$transaction" || true
+        warn "${name} @ ${target%/*} — swap 失败，旧安装已恢复"
+        return 0
+    fi
+    rm -rf -- "$transaction" || true
+    pass "${name} @ ${target%/*} — 已安装拷贝（Windows），更新请重跑 setup.sh"
+}
 
 install_skill() {
     local skill_name="$1" dest_dir="$2"
@@ -53,25 +153,7 @@ install_skill() {
     mkdir -p "${dest_dir}"
 
     if [[ "${IS_WINDOWS}" -eq 1 ]]; then
-        # Windows(Git Bash): 拷贝 + marker。只覆盖本脚本自己装的拷贝，绝不动别人的目录。
-        if [[ -L "${target}" ]]; then
-            # 软链一律拒装（不跟随判所有权），有效软链、悬空软链都在此拦下；软链与被指向目录都不动。
-            fail "problem: ${target} 是软链（Windows 拷贝模式不接管软链）"
-            fail "cause: 该路径被非本脚本管理的内容占用，拒绝覆盖"
-            fail "fix: 确认内容后手动迁移，例如 mv '${target}' '${target}.bak'，再重跑本脚本"
-            exit 1
-        fi
-        if [[ -e "${target}" ]] && ! is_our_copy "${target}"; then
-            fail "problem: ${target} 已存在（非本脚本管理的目录/普通文件）"
-            fail "cause: 该路径被非本脚本安装的内容占用，拒绝覆盖"
-            fail "fix: 确认内容后手动迁移，例如 mv '${target}' '${target}.bak'，再重跑本脚本"
-            exit 1
-        fi
-        rm -rf "${target}"                    # 自属旧拷贝（或不存在）→ 清掉重拷，保幂等更新；旧标记随目录一起被换掉
-        cp -r "${src}" "${target}"
-        git -C "${REPO_DIR}" rev-parse HEAD > "${target}/${MARKER}" 2>/dev/null \
-            || echo unknown > "${target}/${MARKER}"
-        pass "${skill_name} @ ${dest_dir} — 已安装拷贝（Windows），更新请重跑 setup.sh"
+        install_windows_skill "${src}" "${target}" "${skill_name}"
         return 0
     fi
 
@@ -89,10 +171,14 @@ install_skill() {
     fi
 
     if [[ -e "${target}" ]]; then
-        fail "problem: ${target} 已存在（目录或普通文件，非软链）"
-        fail "cause: 该路径被非本脚本管理的内容占用，拒绝覆盖"
-        fail "fix: 确认内容后手动迁移，例如 mv '${target}' '${target}.bak' && ln -s '${src}' '${target}'"
-        exit 1
+        if is_empty_dir "${target}"; then
+            rmdir "${target}" 2>/dev/null || rm -rf "${target}"
+        else
+            fail "problem: ${target} 已存在（目录或普通文件，非软链）"
+            fail "cause: 该路径被非本脚本管理的内容占用，拒绝覆盖"
+            fail "fix: 确认内容后手动迁移，例如 mv '${target}' '${target}.bak' && ln -s '${src}' '${target}'"
+            exit 1
+        fi
     fi
 
     ln -s "${src}" "${target}"
